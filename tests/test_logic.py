@@ -5,16 +5,16 @@ from pathlib import Path
 import pytest
 
 from bot.cogs.status import format_uptime, players_channel_name, status_channel_name, template_values
-from bot.config import ConfigError
+from bot.config import ConfigError, read_settings
 from bot.events import EventParser, PlayerDied, PlayerJoined, PlayerLeft, RaidStarted
 from bot.messages import Messages
 from bot.models import ServerState, ServerStatus
 from bot.sources.dathost import new_lines_since
 from bot.sources.logs import FileLogSource
 
-# Your real messages.toml must always load; the other tests use their own
+# Your real config.toml must always load; the other tests use their own
 # templates below so editing your texts never breaks them.
-REAL_MESSAGES = Path(__file__).parent.parent / "messages.toml"
+REAL_CONFIG = Path(__file__).parent.parent / "config.toml"
 
 TEST_TEMPLATES = {
     "status_channel": {
@@ -41,13 +41,14 @@ def _toml(templates, switches=""):
 def _load(tmp_path, switches="", **overrides):
     """Load the test templates; overrides look like events={"raid": ""}."""
     templates = {section: {**entries, **overrides.get(section, {})} for section, entries in TEST_TEMPLATES.items()}
-    path = tmp_path / "messages.toml"
+    path = tmp_path / "config.toml"
     path.write_text(_toml(templates, switches), encoding="utf-8")
     return Messages.load(path)
 
 
-def test_real_messages_file_loads():
-    Messages.load(REAL_MESSAGES)
+def test_real_config_file_loads():
+    Messages.load(REAL_CONFIG)
+    read_settings(REAL_CONFIG)
 
 
 def test_deaths_and_duplicates():
@@ -128,12 +129,14 @@ def test_file_source(tmp_path):
 def test_channel_names(tmp_path):
     messages = _load(tmp_path)
 
-    def names(status, uptime=None):
+    def names(status, uptime=None, show_names=True):
         values = template_values("My Server", status, uptime)
-        return status_channel_name(messages, values, status), players_channel_name(messages, values, status)
+        return (status_channel_name(messages, values, status),
+                players_channel_name(messages, values, status, show_names))
 
     online = ServerStatus(ServerState.ONLINE, players=2, max_players=6, player_names=("Ragnar", "Lagertha"))
     assert names(online, uptime=3 * 3600 + 42 * 60) == ("🟢 My Server: 2/6 online · up 3h 42m", "👥 Ragnar, Lagertha")
+    assert names(online, show_names=False)[1] == "👥 2 online"  # the player_names switch is off
     offline = ServerStatus(ServerState.OFFLINE, max_players=6)
     assert names(offline) == ("🔴 My Server: offline", "👥 nobody")
     unnamed = ServerStatus(ServerState.ONLINE, players=1, max_players=6)
@@ -174,14 +177,6 @@ def test_empty_text_is_rejected(tmp_path):
         _load(tmp_path, events={"raid": ""})
 
 
-def test_player_row_count_instead_of_names(tmp_path):
-    messages = _load(tmp_path)
-    status = ServerStatus(ServerState.ONLINE, players=2, max_players=6, player_names=("Ragnar", "Lagertha"))
-    values = template_values("My Server", status, None)
-    assert players_channel_name(messages, values, status, show_names=True) == "👥 Ragnar, Lagertha"
-    assert players_channel_name(messages, values, status, show_names=False) == "👥 2 online"
-
-
 def test_backlog_replay_knows_who_is_online():
     parser = EventParser()
     for line in [
@@ -217,3 +212,27 @@ def test_state_skips_unchanged_writes(tmp_path):
     assert "marker" in path.read_text()  # unchanged value: not written again
     state.set("rename_after", {"1": 5.0})
     assert State(path).get("rename_after") == {"1": 5.0}
+
+
+def test_settings_defaults_and_values(tmp_path):
+    path = tmp_path / "config.toml"
+    path.write_text('[display]\nserver_name = "Midgard"\n[timing]\nevent_poll_seconds = 5\n', encoding="utf-8")
+    settings = read_settings(path)
+    assert settings["server_name"] == "Midgard" and settings["event_poll_seconds"] == 5
+    assert settings["status_poll_seconds"] == 30  # missing settings use their default
+
+
+@pytest.mark.parametrize("toml, error", [
+    ('[display]\nservername = "x"', "unknown setting"),
+    ('[display]\nmax_players = "10"', "must be a whole number"),
+    ('[display]\nmax_players = true', "must be a whole number"),
+    ('[display]\nserver_name = 5', "must be text"),
+    ('[display]\ncategory_name = " "', "can't be empty"),
+    ('[timing]\nchannel_rename_seconds = 60', "below 300"),
+    ('[timing]\nevent_poll_seconds = 0', "at least 1"),
+])
+def test_bad_settings_are_rejected(tmp_path, toml, error):
+    path = tmp_path / "config.toml"
+    path.write_text(toml + "\n", encoding="utf-8")
+    with pytest.raises(ConfigError, match=error):
+        read_settings(path)
