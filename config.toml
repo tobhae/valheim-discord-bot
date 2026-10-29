@@ -1,18 +1,14 @@
 # What the bot shows and does: display settings, timing, switches and all texts.
-# Secrets and machine-specific settings (token, IDs, DatHost login, sources) live in .env.
 # Edit this file without rebuilding the image. Save changes, then run
 # `docker compose restart bot` to apply them. The container mounts it read-only.
 
-# --- Display -------------------------------------------------------------------
 [display]
 # Shown as {server} in the texts below.
 server_name   = "My Valheim Server"
-# Valheim doesn't report a slot limit, so set the number shown as "x/10". 0 hides it.
 max_players   = 10
 # Name of the sidebar category. Change it and restart: the bot renames its category.
 category_name = "Server Status"
 
-# --- Timing --------------------------------------------------------------------
 [timing]
 status_poll_seconds    = 30   # how often the server status is checked
 event_poll_seconds     = 15   # how often the log is checked (deaths, raids, joins)
@@ -20,7 +16,6 @@ event_poll_seconds     = 15   # how often the log is checked (deaths, raids, joi
 # so values below 300 are refused.
 channel_rename_seconds = 300
 
-# --- Texts and switches --------------------------------------------------------
 # {placeholders} are filled in by the bot. Each section lists its supported
 # placeholders. Unknown placeholders cause a startup error with the line number.
 # Markdown (**bold**, *italic*) works in posts, but not in channel names or presence.
@@ -67,15 +62,15 @@ empty = "👥 No vikings online"  # nobody online, or server down
 # Placeholders: {server} {state} {players} {max_players} {uptime} {world}
 [presence]
 online  = "Valheim・{players}/{max_players} online"
-offline = "Valheim・server {state}"
+offline = "Valheim・Server {state}"
 
 # Posts in the events channel (each has a switch above).
 # A list ([ "...", "..." ]) means the bot picks one at random.
 [events]
-server_online  = "🟢 **{server}** is online!"      # {server}
-server_offline = "🔴 **{server}** went offline."   # {server}
-player_joined  = "🛡️ **{name}** joined {server}."  # {name} {server}
-player_left    = "🚪 **{name}** left {server}."    # {name} {server}
+server_online  = "🟢 **{server}** is online"      # {server}
+server_offline = "🔴 **{server}** went offline"   # {server}
+player_joined  = "🗡️ **{name}** joined {server}"  # {name} {server}
+player_left    = "🚪 **{name}** left {server}"    # {name} {server}
 
 # Death messages. One variant is chosen at random.
 # Placeholders: {name} {server}
@@ -84,6 +79,10 @@ death = [
     "💀 **{name}** died. The Valkyries are on their way.",
     "💀 **{name}** met an untimely end. Go get your gear back!",
     "💀 **{name}** has been sent to Valhalla (temporarily).",
+    "💀 **{name}** has arrived at Valhalla.",
+    "💀 **{name}** underestimated the dangers of the tenth world.",
+    "💀 **{name}** has fallen. Their saga ends here... for now.",
+    "💀 **{name}** has fallen. Let the skalds tell the tale.",
 ]
 
 # Raid notifications. {attackers} is resolved using the raid definitions below.
