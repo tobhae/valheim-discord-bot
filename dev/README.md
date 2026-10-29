@@ -29,7 +29,7 @@ You should see `Synced 3 application commands` (`/status`, `/announce`, *Edit an
 `Logged in as ...`. Within one poll, the status category appears at the top of your channel list.
 The bot reads `.env` itself, so no `source .env` is needed.
 
-After changing code, `.env` or `messages.toml`: Ctrl+C and start it again. Set `LOG_LEVEL=DEBUG` when
+After changing code, `.env` or `config.toml`: Ctrl+C and start it again. Set `LOG_LEVEL=DEBUG` when
 something silently doesn't happen; the sources log their failures at debug level.
 
 ## A local Valheim server
@@ -110,7 +110,7 @@ What needs what after a change:
 | You changed | Running directly | Running in Docker |
 |---|---|---|
 | `.env` | restart the bot | `docker compose ... up -d` (a plain `restart` keeps the old settings) |
-| `messages.toml` | restart the bot | `docker compose restart bot` |
+| `config.toml` | restart the bot | `docker compose restart bot` |
 | Python code | restart the bot | `docker compose ... up -d --build` |
 
 ## On Windows

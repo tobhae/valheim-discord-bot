@@ -9,7 +9,8 @@ A Discord bot for one Valheim server, built for servers hosted at [DatHost](http
 - **`/announce`:** admins fill in a form and the bot posts it as itself, as a plain message or as an embed
   card. Right-click → **Apps → Edit announcement** edits it afterwards.
 - **`/status`:** state, players, uptime, world and address, visible only to you.
-- **Configurable:** every text, plus an on/off switch for each feature, in [messages.toml](messages.toml).
+- **Configurable:** server name, player limit, category name, every text, and an on/off switch for each
+  feature, in [config.toml](config.toml).
 
 ## How it works
 
@@ -28,8 +29,8 @@ A Discord bot for one Valheim server, built for servers hosted at [DatHost](http
 | File | What it does |
 |---|---|
 | `bot/main.py` | Bot setup: picks the sources from config, loads the features, syncs slash commands |
-| `bot/config.py` | Every `.env` setting in one place |
-| `bot/messages.py` + `messages.toml` | All texts and on/off switches, checked at startup |
+| `bot/config.py` | Every `.env` setting, plus `[display]` and `[timing]` from `config.toml` |
+| `bot/messages.py` + `config.toml` | All texts and on/off switches, checked at startup |
 | `bot/events.py` | Log line → event (death, join, leave, raid) |
 | `bot/state.py` | `data/state.json`: what the bot remembers across restarts |
 | `bot/sources/` | DatHost API, Steam query, Docker log, log file |
@@ -76,7 +77,20 @@ Consider a dedicated DatHost sub-account with access to only this server. The bo
 `/game-servers/{id}` (state, player count, address), `/metrics` (player names) and `/console` (the last
 200 log lines). It never sends commands to the server.
 
-Every other setting is explained in [.env.example](.env.example).
+Every other `.env` setting is explained in [.env.example](.env.example).
+
+Then set your server's name, its player limit and the sidebar category's name under `[display]` in
+[config.toml](config.toml):
+
+```toml
+[display]
+server_name   = "My Valheim Server"
+max_players   = 10
+category_name = "Server Status"
+```
+
+The rule of thumb: `.env` holds secrets and what differs per machine, and isn't committed.
+`config.toml` holds what the bot shows and does: display settings, timing, switches and texts.
 
 ## 3. Run it with Docker
 
@@ -113,9 +127,9 @@ Local testing has a few more differences, listed in [dev/README.md](dev/README.m
 
 ## Usage
 
-- **Texts and switches:** change any text in [messages.toml](messages.toml), or turn features off under
-  `[switches]`, then restart (`docker compose restart bot`). A typo in a `{placeholder}` or switch
-  stops the bot at startup with an error naming the line.
+- **Texts, switches and display settings:** change them in [config.toml](config.toml), then restart
+  (`docker compose restart bot`). A typo in a setting, `{placeholder}` or switch stops the bot at
+  startup with an error naming it.
   - **Rows:** switching a row off deletes the channel the bot created for it; switching it back on
     recreates it.
   - **Your own channels:** set their IDs in `STATUS_CHANNEL_ID` / `PLAYERS_CHANNEL_ID` and the bot
