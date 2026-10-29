@@ -1,0 +1,9 @@
+services:
+  bot:
+    build: .
+    image: valheim-discord-bot
+    restart: unless-stopped
+    env_file: .env
+    volumes:
+      - ./data:/app/data
+      - ./messages.toml:/app/messages.toml:ro

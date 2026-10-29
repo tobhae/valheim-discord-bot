@@ -1,0 +1,28 @@
+# A local Valheim dedicated server for testing.
+# Run from the repository root:
+#   docker compose -f dev/compose.valheim.yml up -d
+# First start downloads ~1-2 GB and takes a few minutes. The world is stored in
+# dev/devserver/ (paths below are relative to this file's folder).
+
+# Own project name, so this doesn't share a network with the bot's compose.yml
+name: valheim-dev
+
+services:
+  valheim:
+    image: lloesche/valheim-server
+    restart: "no"
+    cap_add:
+      - sys_nice
+    stop_grace_period: 2m
+    ports:
+      - "2456-2457:2456-2457/udp"
+    environment:
+      SERVER_NAME: valheim-dev
+      WORLD_NAME: DevWorld
+      SERVER_PASS: devpass123
+      # Valheim only answers Steam status queries (what STATUS_SOURCE=a2s uses) when
+      # public. It will show in the community server browser, still password protected.
+      SERVER_PUBLIC: "true"
+    volumes:
+      - ./devserver/config:/config
+      - ./devserver/data:/opt/valheim

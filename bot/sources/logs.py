@@ -1,0 +1,84 @@
+"""Sources of Valheim log lines: a local file, or none.
+
+The other two live next to their APIs: DatHostConsoleSource in dathost.py and
+DockerLogSource in docker_logs.py. Every source has the same three methods:
+  read_backlog()    called once at startup: recent lines from before the bot
+                    started. The bot reads them without posting, only to learn
+                    who is already online, so a restart never re-announces anything.
+  read_new_lines()  lines added since the last call.
+  close()           called on shutdown.
+"""
+
+from __future__ import annotations
+
+import codecs
+import logging
+from pathlib import Path
+
+log = logging.getLogger(__name__)
+
+FILE_BACKLOG_BYTES = 256 * 1024
+
+
+class FileLogSource:
+    """Tails a log file, like `tail -F`. Handles truncation and recreation."""
+
+    def __init__(self, path: Path) -> None:
+        self._path = path
+        self._position = 0  # set to the end of the file by read_backlog()
+        self._inode: int | None = None
+        self._partial = ""
+        # Keeps a multi-byte character (å, ø...) intact when a read ends in the middle of it.
+        self._decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+
+    async def read_backlog(self) -> list[str]:
+        try:
+            stat = self._path.stat()
+        except FileNotFoundError:
+            self._position, self._inode = 0, None
+            return []
+        self._position, self._inode = stat.st_size, stat.st_ino
+        start = max(0, stat.st_size - FILE_BACKLOG_BYTES)
+        with self._path.open("rb") as f:
+            f.seek(start)
+            lines = f.read(stat.st_size - start).decode("utf-8", errors="replace").split("\n")
+        if start > 0:
+            lines = lines[1:]  # probably cut in the middle
+        return [line.rstrip("\r") for line in lines if line]
+
+    async def read_new_lines(self) -> list[str]:
+        try:
+            stat = self._path.stat()
+        except FileNotFoundError:
+            return []
+        if stat.st_ino != self._inode or stat.st_size < self._position:
+            log.info("%s was created, rotated or truncated, reading from start", self._path)
+            self._position, self._inode, self._partial = 0, stat.st_ino, ""
+            self._decoder.reset()
+        if stat.st_size == self._position:
+            return []
+
+        with self._path.open("rb") as f:
+            f.seek(self._position)
+            chunk = f.read()
+            self._position = f.tell()
+
+        text = self._partial + self._decoder.decode(chunk)
+        lines = text.split("\n")
+        # Keep an unterminated last line until the writer finishes it.
+        self._partial = lines.pop()
+        return [line.rstrip("\r") for line in lines]
+
+    async def close(self) -> None:
+        pass
+
+
+class NullLogSource:
+    async def read_backlog(self) -> list[str]:
+        return []
+
+    async def read_new_lines(self) -> list[str]:
+        return []
+
+    async def close(self) -> None:
+        pass

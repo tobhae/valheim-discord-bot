@@ -1,0 +1,23 @@
+# Local testing only: the bot container reads the log of the local Valheim
+# server (dev/compose.valheim.yml) straight from Docker. Use it on top of compose.yml,
+# from the repository root:
+#
+#   docker compose -f compose.yml -f dev/compose.dev.yml up -d --build
+#
+# Access to the Docker socket is root-equivalent, so only give it to containers you trust.
+services:
+  bot:
+    environment:
+      STATUS_SOURCE: a2s
+      A2S_HOST: host.docker.internal
+      EVENT_SOURCE: docker
+      DOCKER_CONTAINER: valheim-dev-valheim-1
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+    group_add:
+      # The socket belongs to the host's "docker" group, whose id differs per machine.
+      # Find yours with `getent group docker` and set it in .env as DOCKER_GID=<that number>.
+      - "${DOCKER_GID:?set DOCKER_GID to the id from: getent group docker}"
+    extra_hosts:
+      # Lets the container reach the Valheim server on this machine (A2S_HOST above).
+      - "host.docker.internal:host-gateway"
