@@ -1,10 +1,20 @@
-"""All configuration comes from environment variables (see .env.example)."""
+"""Bot configuration from two places.
+
+.env (environment variables): secrets and where things are, which differ between
+machines (see .env.example). config.toml: what the bot shows and does; this module
+reads its [display] and [timing] sections, messages.py the switches and texts.
+"""
 
 from __future__ import annotations
 
+import logging
 import os
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
+
+log = logging.getLogger(__name__)
 
 
 class ConfigError(Exception):
@@ -35,6 +45,72 @@ def _choice(name: str, default: str, choices: set[str]) -> str:
     if value not in choices:
         raise ConfigError(f"{name} must be one of {sorted(choices)}, got {value!r}")
     return value
+
+
+def read_toml(path: Path) -> dict[str, Any]:
+    try:
+        return tomllib.loads(path.read_text(encoding="utf-8"))
+    except FileNotFoundError:
+        raise ConfigError(f"Config file {path} not found (set CONFIG_FILE)") from None
+    except tomllib.TOMLDecodeError as exc:
+        raise ConfigError(f"{path} is not valid TOML: {exc}") from None
+
+
+# config.toml section -> setting -> (type, default). A setting missing from the file uses its default.
+SETTINGS: dict[str, dict[str, tuple[type, Any]]] = {
+    "display": {
+        "server_name": (str, "Valheim"),
+        "max_players": (int, 0),  # 0: not shown, the count appears without "/max"
+        "category_name": (str, "📊 Server Status"),
+    },
+    "timing": {
+        "status_poll_seconds": (int, 30),
+        "event_poll_seconds": (int, 15),
+        # Discord allows 2 renames per channel per 10 minutes; stay under it.
+        "channel_rename_seconds": (int, 300),
+    },
+}
+
+# Settings that moved from .env to config.toml; a leftover in .env is ignored with a warning.
+_MOVED_FROM_ENV = {
+    "SERVER_NAME": "[display] server_name",
+    "MAX_PLAYERS": "[display] max_players",
+    "STATUS_CATEGORY_NAME": "[display] category_name",
+    "STATUS_POLL_SECONDS": "[timing] status_poll_seconds",
+    "EVENT_POLL_SECONDS": "[timing] event_poll_seconds",
+    "CHANNEL_RENAME_SECONDS": "[timing] channel_rename_seconds",
+    "MESSAGES_FILE": "CONFIG_FILE in .env (the file is now config.toml)",
+}
+
+
+def read_settings(path: Path) -> dict[str, Any]:
+    """The [display] and [timing] values from config.toml, checked and with defaults filled in."""
+    data = read_toml(path)
+    values: dict[str, Any] = {}
+    for section, settings in SETTINGS.items():
+        given = data.get(section, {})
+        if unknown := set(given) - set(settings):
+            raise ConfigError(
+                f"{path}: unknown setting(s) {', '.join(sorted(unknown))} under [{section}]. "
+                f"Known: {', '.join(settings)}"
+            )
+        for name, (kind, default) in settings.items():
+            value = given.get(name, default)
+            # bool is a subclass of int, but `max_players = true` is a mistake.
+            if not isinstance(value, kind) or isinstance(value, bool):
+                expected = "a whole number" if kind is int else "text in quotes"
+                raise ConfigError(f"{path}: [{section}] {name} must be {expected}, got {value!r}")
+            if kind is str and not value.strip():
+                raise ConfigError(f"{path}: [{section}] {name} can't be empty")
+            if kind is int and value < 0:
+                raise ConfigError(f"{path}: [{section}] {name} can't be negative")
+            values[name] = value
+    if values["channel_rename_seconds"] < 300:
+        raise ConfigError(f"{path}: [timing] channel_rename_seconds below 300 will hit Discord's rename rate limit")
+    for name in ("status_poll_seconds", "event_poll_seconds"):
+        if values[name] < 1:
+            raise ConfigError(f"{path}: [timing] {name} must be at least 1")
+    return values
 
 
 @dataclass(frozen=True)
@@ -70,19 +146,25 @@ class Config:
     channel_rename_seconds: int
 
     state_file: Path
-    messages_file: Path
+    config_file: Path
 
     @classmethod
-    def from_env(cls) -> Config:
+    def load(cls) -> Config:
+        for name, new_place in _MOVED_FROM_ENV.items():
+            if os.environ.get(name, "").strip():
+                log.warning("%s in .env is no longer used; set it as %s", name, new_place)
+
+        config_file = Path(_get("CONFIG_FILE", "config.toml"))
+        settings = read_settings(config_file)
         status_source = _choice("STATUS_SOURCE", "dathost", {"dathost", "a2s"})
         event_source = _choice("EVENT_SOURCE", "none", {"dathost", "docker", "file", "none"})
 
         needs_dathost = "dathost" in (status_source, event_source)
-        config = cls(
+        return cls(
             discord_token=_get("DISCORD_TOKEN", required=True),
             guild_id=_int("DISCORD_GUILD_ID", required=True),
-            server_name=_get("SERVER_NAME", "Valheim"),
-            max_players=_int("MAX_PLAYERS"),
+            server_name=settings["server_name"],
+            max_players=settings["max_players"] or None,
             status_source=status_source,
             event_source=event_source,
             dathost_email=_get("DATHOST_EMAIL", required=needs_dathost),
@@ -94,17 +176,13 @@ class Config:
             event_log_file=Path(p) if (p := _get("EVENT_LOG_FILE", required=event_source == "file")) else None,
             docker_container=_get("DOCKER_CONTAINER", required=event_source == "docker"),
             docker_socket=_get("DOCKER_SOCKET", "/var/run/docker.sock"),
-            status_category_name=_get("STATUS_CATEGORY_NAME", "📊 Server Status"),
+            status_category_name=settings["category_name"],
             status_channel_id=_int("STATUS_CHANNEL_ID"),
             players_channel_id=_int("PLAYERS_CHANNEL_ID"),
             events_channel_id=_int("EVENTS_CHANNEL_ID"),
-            status_poll_seconds=_int("STATUS_POLL_SECONDS", 30),
-            event_poll_seconds=_int("EVENT_POLL_SECONDS", 15),
-            # Discord allows 2 renames per channel per 10 minutes; stay under it.
-            channel_rename_seconds=_int("CHANNEL_RENAME_SECONDS", 300),
+            status_poll_seconds=settings["status_poll_seconds"],
+            event_poll_seconds=settings["event_poll_seconds"],
+            channel_rename_seconds=settings["channel_rename_seconds"],
             state_file=Path(_get("STATE_FILE", "data/state.json")),
-            messages_file=Path(_get("MESSAGES_FILE", "messages.toml")),
+            config_file=config_file,
         )
-        if config.channel_rename_seconds < 300:
-            raise ConfigError("CHANNEL_RENAME_SECONDS below 300 will hit Discord's rename rate limit")
-        return config

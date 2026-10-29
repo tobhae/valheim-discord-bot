@@ -2,9 +2,9 @@
 
 The "stats rows" in the sidebar are voice channels that nobody can join; the
 bot simply renames them. Discord allows 2 renames per channel every 10
-minutes, so the bot renames at most every CHANNEL_RENAME_SECONDS (300) and the
+minutes, so the bot renames at most every channel_rename_seconds (300) and the
 names can lag behind by that much. The presence and /status are updated on
-every poll. What is shown at all is controlled by [switches] in messages.toml.
+every poll. What is shown at all is controlled by [switches] in config.toml.
 """
 
 from __future__ import annotations
@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-# Only used by the /status card; sidebar and presence texts live in messages.toml.
+# Only used by the /status card; sidebar and presence texts live in config.toml.
 STATE_ICONS = {
     ServerState.ONLINE: "🟢",
     ServerState.STARTING: "🟡",
@@ -55,7 +55,7 @@ def format_uptime(seconds: float) -> str:
 
 
 def template_values(server_name: str, status: ServerStatus, uptime: float | None) -> dict[str, object]:
-    """Everything a status/presence template in messages.toml may use."""
+    """Everything a status/presence template in config.toml may use."""
     return {
         "server": server_name,
         "state": status.state.value,
@@ -167,7 +167,7 @@ class StatusCog(commands.Cog):
     # --- channels -------------------------------------------------------------
 
     def _category(self, guild: discord.Guild) -> discord.CategoryChannel | None:
-        """The bot's category: remembered by id, so renaming STATUS_CATEGORY_NAME renames it."""
+        """The bot's category: remembered by id, so changing [display] category_name renames it."""
         category = guild.get_channel(self.bot.state.get("status_category_id") or 0)
         if isinstance(category, discord.CategoryChannel):
             return category
@@ -194,7 +194,7 @@ class StatusCog(commands.Cog):
         category = self._category(guild)
         if category is not None and category.name != self.config.status_category_name:
             old = category.name
-            await category.edit(name=self.config.status_category_name, reason="STATUS_CATEGORY_NAME changed")
+            await category.edit(name=self.config.status_category_name, reason="category_name changed in config.toml")
             log.info("Renamed category %r to %r", old, category.name)
 
     async def _ensure_channel(self, guild: discord.Guild, row: Row, initial_name: str) -> discord.VoiceChannel | None:
@@ -243,7 +243,7 @@ class StatusCog(commands.Cog):
         if row.configured_id or not (channel_id := self.bot.state.get(row.state_key)):
             return
         if channel := guild.get_channel(channel_id):
-            await channel.delete(reason=f"{row.switch} switched off in messages.toml")
+            await channel.delete(reason=f"{row.switch} switched off in config.toml")
             log.info("Removed status channel %r (%s is off)", channel.name, row.switch)
         self.bot.state.set(row.state_key, None)
 
@@ -255,7 +255,7 @@ class StatusCog(commands.Cog):
         category = self._category(guild)
         if category is None or category.channels:
             return False
-        await category.delete(reason="All status rows switched off in messages.toml")
+        await category.delete(reason="All status rows switched off in config.toml")
         self.bot.state.set("status_category_id", None)
         log.info("Removed empty category %r", category.name)
         return True

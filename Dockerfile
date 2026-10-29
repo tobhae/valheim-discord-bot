@@ -7,8 +7,8 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY bot ./bot
-# Default texts; compose.yml mounts your edited copy over it.
-COPY messages.toml .
+# Default settings and texts; compose.yml mounts your edited copy over it.
+COPY config.toml .
 
 RUN useradd --create-home --uid 1000 bot && mkdir -p /app/data && chown bot /app/data
 USER bot

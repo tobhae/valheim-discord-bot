@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-# Player event -> its switch in messages.toml, which is also the name of its [events] text.
+# Player event -> its switch in config.toml, which is also the name of its [events] text.
 PLAYER_EVENTS = {PlayerDied: "death", PlayerJoined: "player_joined", PlayerLeft: "player_left"}
 
 

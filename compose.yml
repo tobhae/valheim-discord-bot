@@ -6,4 +6,4 @@ services:
     env_file: .env
     volumes:
       - ./data:/app/data
-      - ./messages.toml:/app/messages.toml:ro
+      - ./config.toml:/app/config.toml:ro

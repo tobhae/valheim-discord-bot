@@ -32,7 +32,7 @@ class ValheimBot(commands.Bot):
         )
         self.config = config
         self.state = State(config.state_file)
-        self.messages = Messages.load(config.messages_file)
+        self.messages = Messages.load(config.config_file)
 
         self.dathost: DatHostClient | None = None
         if "dathost" in (config.status_source, config.event_source):
@@ -93,5 +93,5 @@ def run() -> None:
         level=os.environ.get("LOG_LEVEL", "INFO").upper(),
         format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
     )
-    config = Config.from_env()
+    config = Config.load()
     ValheimBot(config).run(config.discord_token, log_handler=None)

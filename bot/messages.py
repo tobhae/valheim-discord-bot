@@ -1,4 +1,6 @@
-"""Loads messages.toml: the on/off switches and the text templates.
+"""Loads the [switches] and text templates from config.toml.
+
+([display] and [timing] in the same file are read by config.py.)
 
 Everything is checked at startup, so a typo in the file stops the bot with a
 clear error instead of breaking the first death message at 3 am.
@@ -8,10 +10,9 @@ from __future__ import annotations
 
 import random
 import string
-import tomllib
 from pathlib import Path
 
-from .config import ConfigError
+from .config import ConfigError, read_toml
 
 _STATUS = {"server", "state", "players", "max_players", "uptime", "world"}
 
@@ -54,12 +55,7 @@ class Messages:
 
     @classmethod
     def load(cls, path: Path) -> Messages:
-        try:
-            data = tomllib.loads(path.read_text(encoding="utf-8"))
-        except FileNotFoundError:
-            raise ConfigError(f"Messages file {path} not found (set MESSAGES_FILE)") from None
-        except tomllib.TOMLDecodeError as exc:
-            raise ConfigError(f"{path} is not valid TOML: {exc}") from None
+        data = read_toml(path)
 
         switches = dict.fromkeys(SWITCHES, True)
         for name, value in data.get("switches", {}).items():
