@@ -46,10 +46,11 @@ Running and testing it locally, including a local Valheim server: [dev/README.md
 3. **Installation** tab:
    - **Installation Contexts:** enable **Guild Install** (User Install isn't needed).
    - **Guild Install scopes:** `bot` and `applications.commands`.
-   - **Permissions:** View Channels, Manage Channels, Connect, Send Messages, Embed Links, Mention Everyone.
+   - **Permissions:** View Channels, Manage Channels, Connect, Send Messages, Embed Links, Attach Files,
+     Mention Everyone.
 4. Invite it with this URL, using the Application ID from the General Information tab:
    ```
-   https://discord.com/oauth2/authorize?client_id=YOUR_APP_ID&scope=bot+applications.commands&permissions=1199120&integration_type=0
+   https://discord.com/oauth2/authorize?client_id=YOUR_APP_ID&scope=bot+applications.commands&permissions=1231888&integration_type=0
    ```
    Pick your server and authorize. The bot then shows up in the member list.
 5. In Discord, turn on **User Settings → Advanced → Developer Mode**, then:
@@ -134,12 +135,16 @@ Local testing has a few more differences, listed in [dev/README.md](dev/README.m
     recreates it.
   - **Your own channels:** set their IDs in `STATUS_CHANNEL_ID` / `PLAYERS_CHANNEL_ID` and the bot
     only renames them, never deletes them.
-- **`/announce [channel] [mention] [style]`:** opens a form for an optional title and the message
+- **`/announce [channel] [mention] [style] [image]`:** opens a form for an optional title and the message
   (Markdown works).
+  - **Images:** pick one under `image` (PNG, JPG, GIF or WebP). Plain style posts it below the text,
+    embed style as the card's picture. With an image the message is optional, so you can post just
+    the image. The bot needs *Attach Files* in that channel.
   - **Pings:** only the role you pick under `mention` gets pinged; @mentions inside the text never ping.
   - **Who can use it:** by default only members with *Manage Server* see the command. Change that under
     **Server Settings → Integrations → your bot**.
-- **Edit an announcement:** right-click the bot's message → **Apps → Edit announcement**.
+- **Edit an announcement:** right-click the bot's message → **Apps → Edit announcement**. The image
+  stays, but can't be swapped (post a new announcement for that).
 - **`/status`:** a status card only you can see.
 
 **Sidebar delay:** Discord allows only 2 renames per channel every 10 minutes, so the sidebar can lag by
