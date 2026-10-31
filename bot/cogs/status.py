@@ -120,6 +120,13 @@ class StatusCog(commands.Cog):
 
     @tasks.loop(seconds=30)
     async def poll(self) -> None:
+        # An error escaping the loop would stop it, so a failed poll is retried at the next one.
+        try:
+            await self._update()
+        except Exception:
+            log.exception("Status poll failed, retrying in %ss", self.config.status_poll_seconds)
+
+    async def _update(self) -> None:
         status = self._with_names_from_log(await self.bot.status_provider.fetch())
         self.status = status
         self._track_uptime(status)
@@ -158,11 +165,6 @@ class StatusCog(commands.Cog):
     @poll.before_loop
     async def _before_poll(self) -> None:
         await self.bot.wait_until_ready()
-
-    @poll.error
-    async def _poll_error(self, exc: BaseException) -> None:
-        log.exception("Status poll crashed, restarting", exc_info=exc)
-        self.poll.restart()
 
     # --- channels -------------------------------------------------------------
 

@@ -33,6 +33,13 @@ class EventsCog(commands.Cog):
 
     @tasks.loop(seconds=15)
     async def poll(self) -> None:
+        # An error escaping the loop would stop it, so a failed poll is retried at the next one.
+        try:
+            await self._post_new_events()
+        except Exception:
+            log.exception("Event poll failed, retrying in %ss", self.bot.config.event_poll_seconds)
+
+    async def _post_new_events(self) -> None:
         server = self.bot.config.server_name
         for line in await self.bot.log_source.read_new_lines():
             event = self.parser.parse(line)
@@ -52,17 +59,17 @@ class EventsCog(commands.Cog):
         await self.bot.wait_until_ready()
         # Replay the recent log without posting anything, only so the bot knows who
         # is already online (for row 2 and their "left" post).
-        backlog = await self.bot.log_source.read_backlog()
+        try:
+            backlog = await self.bot.log_source.read_backlog()
+        except Exception:
+            # An error here would stop the loop before its first poll.
+            log.exception("Could not read earlier log lines; players already online won't be known")
+            return
         for line in backlog:
             self.parser.parse(line)
         self.parser.forget_timings()
         log.info("Read %d earlier log lines; online now: %s", len(backlog),
                  ", ".join(self.parser.online_names()) or "nobody")
-
-    @poll.error
-    async def _poll_error(self, exc: BaseException) -> None:
-        log.exception("Event poll crashed, restarting", exc_info=exc)
-        self.poll.restart()
 
 
 async def setup(bot: ValheimBot) -> None:
