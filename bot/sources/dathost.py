@@ -70,22 +70,31 @@ class DatHostClient:
                     raise DatHostError("server not found (check DATHOST_SERVER_ID)")
                 if resp.status != 200:
                     raise DatHostError(f"unexpected HTTP {resp.status}")
-                return await resp.json(content_type=None)
+                try:
+                    return await resp.json(content_type=None)
+                except ValueError:  # e.g. an HTML maintenance page
+                    raise DatHostError("response wasn't valid JSON") from None
         except (aiohttp.ClientError, TimeoutError) as exc:
             raise DatHostError(f"request failed: {exc.__class__.__name__}") from None
 
     async def get_server(self) -> dict[str, Any]:
-        return await self._get("")
+        return _object(await self._get(""), "server")
 
     async def get_metrics(self) -> dict[str, Any]:
-        return await self._get("/metrics")
+        return _object(await self._get("/metrics"), "metrics")
 
     async def get_console_lines(self, max_lines: int = 200) -> list[str]:
-        payload = await self._get("/console", {"max_lines": max_lines})
-        lines = payload.get("lines") if isinstance(payload, dict) else None
+        lines = _object(await self._get("/console", {"max_lines": max_lines}), "console").get("lines")
         if not isinstance(lines, list):
             raise DatHostError("unexpected console response format")
         return [line for line in lines if isinstance(line, str)]
+
+
+def _object(payload: Any, endpoint: str) -> dict[str, Any]:
+    """The response as a JSON object; anything else is reported like a failed request."""
+    if not isinstance(payload, dict):
+        raise DatHostError(f"unexpected {endpoint} response format")
+    return payload
 
 
 class DatHostStatusProvider:
@@ -122,9 +131,13 @@ class DatHostStatusProvider:
         else:
             players = 0
 
-        settings = server.get("valheim_settings") or {}
+        # Parts in an unexpected shape are left out instead of failing the whole status.
+        settings = server.get("valheim_settings")
+        settings = settings if isinstance(settings, dict) else {}
+        ports = server.get("ports")
+        ports = ports if isinstance(ports, dict) else {}
         host = server.get("custom_domain") or server.get("ip") or server.get("raw_ip")
-        port = (server.get("ports") or {}).get("game")
+        port = ports.get("game")
         return ServerStatus(
             state=state,
             players=players,
