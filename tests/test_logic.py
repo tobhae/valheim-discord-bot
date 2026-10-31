@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from bot.cogs.announce import MB, image_filename, image_problem
 from bot.cogs.status import format_uptime, players_channel_name, status_channel_name, template_values
 from bot.config import ConfigError, read_settings
 from bot.events import EventParser, PlayerDied, PlayerJoined, PlayerLeft, RaidStarted
@@ -236,3 +237,22 @@ def test_bad_settings_are_rejected(tmp_path, toml, error):
     path.write_text(toml + "\n", encoding="utf-8")
     with pytest.raises(ConfigError, match=error):
         read_settings(path)
+
+
+@pytest.mark.parametrize("content_type, filename, expected", [
+    ("image/png", "Screenshot 2026-10-31 at 12.00.png", "image.png"),
+    ("image/jpeg", "boss.JPG", "image.jpg"),
+    ("image/webp; charset=binary", "x.webp", "image.webp"),
+    (None, "raid.GIF", "image.gif"),
+    (None, "notes", None),
+    ("application/pdf", "fake.png", None),  # the content type wins over the name
+    ("image/svg+xml", "logo.svg", None),
+])
+def test_image_filename(content_type, filename, expected):
+    assert image_filename(content_type, filename) == expected
+
+
+def test_image_problem():
+    assert image_problem("image/png", "a.png", 5 * MB, 10 * MB) is None
+    assert "isn't an image" in image_problem("text/plain", "a.txt", 1, 10 * MB)
+    assert "up to 10 MB" in image_problem("image/png", "a.png", 25 * MB, 10 * MB)
