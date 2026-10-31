@@ -16,18 +16,24 @@ log = logging.getLogger(__name__)
 
 
 class A2SStatusProvider:
+    # 1 miss = Status Unknown, 2 misses = Offline
+    MISSES_FOR_OFFLINE = 2
+
     def __init__(self, host: str, port: int, max_players: int | None, timeout: float = 3.0) -> None:
         self._address = (host, port)
         self._max_players = max_players
         self._timeout = timeout
+        self._misses = 0
 
     async def fetch(self) -> ServerStatus:
         try:
             info = await a2s.ainfo(self._address, timeout=self._timeout)
         except (TimeoutError, OSError, a2s.BrokenMessageError) as exc:
-            # No answer is indistinguishable from "server is down" here.
-            log.debug("A2S query failed: %s", exc)
-            return ServerStatus(ServerState.OFFLINE, max_players=self._max_players)
+            self._misses += 1
+            log.debug("A2S query failed (%d in a row): %s", self._misses, exc)
+            state = ServerState.OFFLINE if self._misses >= self.MISSES_FOR_OFFLINE else ServerState.UNKNOWN
+            return ServerStatus(state, max_players=self._max_players)
+        self._misses = 0
 
         names: tuple[str, ...] | None = None
         try:
