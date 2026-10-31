@@ -229,6 +229,7 @@ def test_settings_defaults_and_values(tmp_path):
     ('[display]\nmax_players = true', "must be a whole number"),
     ('[display]\nserver_name = 5', "must be text"),
     ('[display]\ncategory_name = " "', "can't be empty"),
+    (f'[display]\ncategory_name = "{"x" * 101}"', "at most 100 characters"),
     ('[timing]\nchannel_rename_seconds = 60', "below 300"),
     ('[timing]\nevent_poll_seconds = 0', "at least 1"),
 ])

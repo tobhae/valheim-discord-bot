@@ -193,11 +193,9 @@ class StatusCog(commands.Cog):
         return category
 
     async def _sync_category_name(self, guild: discord.Guild) -> None:
-        category = self._category(guild)
-        if category is not None and category.name != self.config.status_category_name:
-            old = category.name
-            await category.edit(name=self.config.status_category_name, reason="category_name changed in config.toml")
-            log.info("Renamed category %r to %r", old, category.name)
+        # Through _rename, so it's limited like the rows if Discord stores the name differently.
+        if (category := self._category(guild)) is not None:
+            await self._rename(category, self.config.status_category_name)
 
     async def _ensure_channel(self, guild: discord.Guild, row: Row, initial_name: str) -> discord.VoiceChannel | None:
         channel_id = row.configured_id or self.bot.state.get(row.state_key)
@@ -270,7 +268,7 @@ class StatusCog(commands.Cog):
         rename_after = {**self.bot.state.get("rename_after", {}), str(channel_id): when}
         self.bot.state.set("rename_after", rename_after)
 
-    async def _rename(self, channel: discord.VoiceChannel, name: str) -> None:
+    async def _rename(self, channel: discord.VoiceChannel | discord.CategoryChannel, name: str) -> None:
         if channel.name == name or time.time() < self._rename_after(channel.id):
             return  # unchanged, or too soon: picked up again on a later poll
         try:

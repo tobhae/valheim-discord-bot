@@ -105,6 +105,8 @@ def read_settings(path: Path) -> dict[str, Any]:
             if kind is int and value < 0:
                 raise ConfigError(f"{path}: [{section}] {name} can't be negative")
             values[name] = value
+    if len(values["category_name"]) > 100:
+        raise ConfigError(f"{path}: [display] category_name can be at most 100 characters (Discord's limit)")
     if values["channel_rename_seconds"] < 300:
         raise ConfigError(f"{path}: [timing] channel_rename_seconds below 300 will hit Discord's rename rate limit")
     for name in ("status_poll_seconds", "event_poll_seconds"):
