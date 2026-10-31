@@ -15,6 +15,7 @@ import codecs
 import contextlib
 import logging
 import struct
+import time
 from datetime import datetime
 
 import aiohttp
@@ -46,7 +47,7 @@ class DockerLogSource:
         self._socket_path = socket_path
         self._session: aiohttp.ClientSession | None = None
         self._buffer: list[str] = []
-        self._last_ns = 0  # timestamp of the newest line seen, to resume without gaps or repeats
+        self._last_ns = 0 # Timestamp of the newest line seen (or of the bot's start), to resume without gaps or repeats.
         self._follow_task: asyncio.Task | None = None
 
     def _http(self) -> aiohttp.ClientSession:
@@ -66,12 +67,14 @@ class DockerLogSource:
             await self._session.close()
 
     async def read_backlog(self) -> list[str]:
+        started_ns = time.time_ns()
         lines: list[str] = []
         try:
             async for text in self._stream(follow=False, tail=BACKLOG_LINES):
                 lines.append(text)
         except (aiohttp.ClientError, OSError) as exc:
             log.warning("Could not read the log of container %r: %s", self._container, _explain(exc))
+        self._last_ns = max(self._last_ns, started_ns)
         self._follow_task = asyncio.create_task(self._follow())
         return lines
 
