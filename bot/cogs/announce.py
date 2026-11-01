@@ -201,8 +201,9 @@ class AnnounceCog(commands.Cog):
             needed["Embed Links"] = perms.embed_links
         if image is not None:
             needed["Attach Files"] = perms.attach_files
-        if not all(needed.values()):
-            listed = " and ".join(f"*{name}*" for name in needed)
+        missing = [name for name, ok in needed.items() if not ok]
+        if missing:
+            listed = " and ".join(f"*{name}*" for name in missing)
             await interaction.response.send_message(f"I need {listed} in {target.mention}.", ephemeral=True)
             return
         await interaction.response.send_modal(AnnouncementModal(target, mention, style, image))
