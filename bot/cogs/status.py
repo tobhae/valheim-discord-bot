@@ -26,12 +26,12 @@ if TYPE_CHECKING:
 
 log = logging.getLogger(__name__)
 
-# Only used by the /status card; sidebar and presence texts live in config.toml.
-STATE_ICONS = {
-    ServerState.ONLINE: "🟢",
-    ServerState.STARTING: "🟡",
-    ServerState.OFFLINE: "🔴",
-    ServerState.UNKNOWN: "⚪",
+# Icon and color of the /status card; sidebar and presence texts live in config.toml.
+STATE_STYLE = {
+    ServerState.ONLINE: ("🟢", discord.Color.green()),
+    ServerState.STARTING: ("🟡", discord.Color.gold()),
+    ServerState.OFFLINE: ("🔴", discord.Color.red()),
+    ServerState.UNKNOWN: ("⚪", discord.Color.light_grey()),
 }
 CHANNEL_NAME_LIMIT = 100
 
@@ -356,11 +356,7 @@ class StatusCog(commands.Cog):
             )
             return
         status = self.status
-        icon = STATE_ICONS[status.state]
-        color = {
-            ServerState.ONLINE: discord.Color.green(),
-            ServerState.STARTING: discord.Color.gold(),
-        }.get(status.state, discord.Color.red())
+        icon, color = STATE_STYLE[status.state]
         embed = discord.Embed(title=f"{icon} {self.config.server_name}", color=color)
         embed.add_field(name="State", value=status.state.value.capitalize())
         embed.add_field(name="Players", value=player_count(status))
