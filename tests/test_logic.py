@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from bot.cogs.announce import MB, image_filename, image_problem
+from bot.cogs.announce import LABEL_LIMIT, MB, edit_label, image_filename, image_problem, split_ping
 from bot.cogs.status import format_uptime, players_channel_name, status_channel_name, template_values
 from bot.config import ConfigError, read_settings
 from bot.events import EventParser, PlayerDied, PlayerJoined, PlayerLeft, RaidStarted
@@ -257,3 +257,17 @@ def test_image_problem():
     assert image_problem("image/png", "a.png", 5 * MB, 10 * MB) is None
     assert "isn't an image" in image_problem("text/plain", "a.txt", 1, 10 * MB)
     assert "up to 10 MB" in image_problem("image/png", "a.png", 25 * MB, 10 * MB)
+
+
+def test_split_ping():
+    assert split_ping("<@&123>\n## Title\nText") == ("<@&123>", "## Title\nText")
+    assert split_ping("@everyone") == ("@everyone", "")
+    # Mentions typed in the text itself stay in the text.
+    assert split_ping("Hello\n@everyone\nhow are you?") == (None, "Hello\n@everyone\nhow are you?")
+    assert split_ping("<@&123> come online") == (None, "<@&123> come online")
+
+
+def test_edit_label():
+    assert edit_label("@Vikings") == "Message (keeps the @Vikings ping)"
+    long = edit_label("@" + "x" * 50)
+    assert len(long) == LABEL_LIMIT and "…" in long
