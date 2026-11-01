@@ -150,7 +150,7 @@ class StatusCog(commands.Cog):
         }
         try:
             for row in self.rows:
-                if messages.enabled("category_bar") and messages.enabled(row.switch):
+                if self._row_enabled(row):
                     if channel := await self._ensure_channel(guild, row, names[row.switch]):
                         await self._rename(channel, names[row.switch])
                 else:
@@ -167,6 +167,10 @@ class StatusCog(commands.Cog):
         await self.bot.wait_until_ready()
 
     # --- channels -------------------------------------------------------------
+
+    def _row_enabled(self, row: Row) -> bool:
+        messages = self.bot.messages
+        return messages.enabled("category_bar") and messages.enabled(row.switch)
 
     def _category(self, guild: discord.Guild) -> discord.CategoryChannel | None:
         """The bot's category: remembered by id, so changing [display] category_name renames it."""
@@ -249,8 +253,7 @@ class StatusCog(commands.Cog):
 
     async def _remove_empty_category(self, guild: discord.Guild) -> bool:
         """Delete the category once every row is switched off (not while a row is waiting to be created)."""
-        messages = self.bot.messages
-        if messages.enabled("category_bar") and any(messages.enabled(row.switch) for row in self.rows):
+        if any(self._row_enabled(row) for row in self.rows):
             return False
         category = self._category(guild)
         if category is None or category.channels:
