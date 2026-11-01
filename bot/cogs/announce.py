@@ -7,6 +7,7 @@ who may use it under Server Settings → Integrations → <bot> without code.
 from __future__ import annotations
 
 import logging
+import re
 from pathlib import PurePath
 from typing import TYPE_CHECKING, Literal
 
@@ -23,6 +24,7 @@ Style = Literal["plain", "embed"]
 PLAIN_LIMIT = 2000  # Discord's message limit; embed descriptions allow 4096
 IMAGE_TYPES = ("png", "jpg", "gif", "webp")
 MB = 1024 * 1024
+LABEL_LIMIT = 45  # Discord's limit for form field labels
 
 
 def image_filename(content_type: str | None, filename: str) -> str | None:
@@ -49,6 +51,30 @@ def image_problem(content_type: str | None, filename: str, size: int, limit: int
     return None
 
 
+def split_ping(content: str) -> tuple[str | None, str]:
+    """Split off the ping line /announce puts on top of plain posts: (ping, rest)."""
+    first, _, rest = content.partition("\n")
+    if first == "@everyone" or re.fullmatch(r"<@&\d+>", first):
+        return first, rest
+    return None, content
+
+
+def ping_name(ping: str, guild: discord.Guild | None) -> str:
+    """A ping line as people see it in Discord, e.g. "@Vikings"."""
+    if ping == "@everyone":
+        return ping
+    role = guild.get_role(int(ping[3:-1])) if guild is not None else None
+    return f"@{role.name}" if role is not None else "role"
+
+
+def edit_label(ping_name: str) -> str:
+    """Label of the message field when editing a post with a ping, within Discord's limit."""
+    room = LABEL_LIMIT - len("Message (keeps the  ping)")
+    if len(ping_name) > room:
+        ping_name = ping_name[:room - 1] + "…"
+    return f"Message (keeps the {ping_name} ping)"
+
+
 def announcement_card(message: discord.Message) -> discord.Embed | None:
     """The card of an embed-style announcement. Link previews in plain posts are embeds too, but not cards."""
     return next((embed for embed in message.embeds if embed.type == "rich"), None)
@@ -71,6 +97,10 @@ class AnnouncementModal(discord.ui.Modal, title="New announcement"):
         self.style = style
         self.image = image
         self.original = original
+        # The ping line on top of the message; on edits it's kept out of the form and put back on save.
+        self.ping: str | None = None
+        if mention is not None:
+            self.ping = "@everyone" if mention.is_default() else mention.mention
         has_image = image is not None
         if original is not None:
             self.title = "Edit announcement"
@@ -81,11 +111,13 @@ class AnnouncementModal(discord.ui.Modal, title="New announcement"):
                 has_image = bool(card.image.url)
             else:
                 # The title is part of the text in plain posts, so edit it there.
-                self.body.default = original.content
+                self.ping, self.body.default = split_ping(original.content)
                 self.style = "plain"
                 has_image = bool(original.attachments)
+                if self.ping is not None:
+                    self.body.label = edit_label(ping_name(self.ping, original.guild))
         if self.style == "plain":
-            self.body.max_length = PLAIN_LIMIT
+            self.body.max_length = PLAIN_LIMIT - (len(self.ping) + 1 if self.ping else 0)
         if has_image:
             # The image alone is enough to post, so the text becomes a caption you can leave out.
             self.body.required = False
@@ -100,12 +132,14 @@ class AnnouncementModal(discord.ui.Modal, title="New announcement"):
             embed = discord.Embed(title=title or None, description=body or None, color=discord.Color.gold())
         else:
             content = (f"## {title}\n{body}".rstrip() if title else body) or None
-            if content and len(content) > PLAIN_LIMIT:
-                await interaction.response.send_message(
-                    f"Plain messages are limited to {PLAIN_LIMIT} characters, use `style: embed` for longer ones.",
-                    ephemeral=True,
-                )
-                return
+        if self.ping is not None:
+            content = f"{self.ping}\n{content}" if content else self.ping
+        if self.style == "plain" and content and len(content) > PLAIN_LIMIT:
+            await interaction.response.send_message(
+                f"Plain messages are limited to {PLAIN_LIMIT} characters, use `style: embed` for longer ones.",
+                ephemeral=True,
+            )
+            return
 
         # Fetching and re-uploading an image can take longer than the 3 seconds Discord waits for a reply.
         await interaction.response.defer(ephemeral=True, thinking=True)
@@ -132,9 +166,6 @@ class AnnouncementModal(discord.ui.Modal, title="New announcement"):
             if embed is not None:
                 embed.set_image(url=f"attachment://{name}")
 
-        if self.mention is not None:
-            ping = "@everyone" if self.mention.is_default() else self.mention.mention
-            content = f"{ping}\n{content}" if content else ping
         message = await self.channel.send(
             content=content,
             embed=embed,
