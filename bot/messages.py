@@ -71,6 +71,8 @@ class Messages:
             value = data.get(section, {}).get(name)
             if value is None:
                 raise ConfigError(f"{path}: missing {name} = \"...\" under [{section}]")
+            if isinstance(value, list) and section != "events":
+                raise ConfigError(f"{path}: [{section}] {name} must be a single text (lists only work under [events])")
             options = [value] if isinstance(value, str) else value
             if not isinstance(options, list) or not all(isinstance(o, str) for o in options):
                 raise ConfigError(f"{path}: [{section}] {name} must be a text or a list of texts")
