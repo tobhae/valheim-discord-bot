@@ -88,7 +88,7 @@ class AnnouncementModal(discord.ui.Modal, title="New announcement"):
     )
 
     def __init__(
-        self, channel: discord.TextChannel, mention: discord.Role | None, style: Style,
+        self, channel: discord.TextChannel, mention: discord.Role | None = None, style: Style = "plain",
         image: discord.Attachment | None = None, original: discord.Message | None = None,
     ) -> None:
         super().__init__()
@@ -244,7 +244,7 @@ class AnnounceCog(commands.Cog):
             await interaction.response.send_message("I can only edit messages I posted.", ephemeral=True)
             return
         # The style is taken from the original message.
-        await interaction.response.send_modal(AnnouncementModal(message.channel, None, "plain", original=message))
+        await interaction.response.send_modal(AnnouncementModal(message.channel, original=message))
 
 
 async def setup(bot: ValheimBot) -> None:
