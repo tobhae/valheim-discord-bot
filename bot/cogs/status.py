@@ -344,7 +344,12 @@ class StatusCog(commands.Cog):
 
     @app_commands.command(name="status", description="Show the Valheim server status")
     async def status_command(self, interaction: discord.Interaction) -> None:
-        status = self.status or await self.bot.status_provider.fetch()
+        if self.status is None:
+            await interaction.response.send_message(
+                "Still fetching the server status, try again in a few seconds.", ephemeral=True
+            )
+            return
+        status = self.status
         icon = STATE_ICONS[status.state]
         color = {
             ServerState.ONLINE: discord.Color.green(),
