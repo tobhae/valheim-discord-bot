@@ -23,7 +23,9 @@ EXTENSIONS = ("bot.cogs.status", "bot.cogs.events", "bot.cogs.announce")
 class ValheimBot(commands.Bot):
     def __init__(self, config: Config) -> None:
         super().__init__(
+            # Required by commands.Bot, but unused: see on_message.
             command_prefix=commands.when_mentioned,
+            help_command=None,
             # Slash commands only, so no privileged intents (message content etc.) are needed.
             intents=discord.Intents.default(),
             # By default discord.py silently waits out rate limits, even for minutes, which
@@ -63,6 +65,11 @@ class ValheimBot(commands.Bot):
 
     async def on_ready(self) -> None:
         log.info("Logged in as %s (id %s)", self.user, self.user.id)
+
+    async def on_message(self, message: discord.Message) -> None:
+        # Slash commands only. The default would treat "@bot <word>" as a prefix command
+        # and log an error traceback for every unknown one.
+        pass
 
     async def close(self) -> None:
         await self.log_source.close()
