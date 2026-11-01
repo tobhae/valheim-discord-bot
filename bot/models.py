@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from typing import Protocol
 
 
 class ServerState(StrEnum):
@@ -24,3 +25,11 @@ class ServerStatus:
     @property
     def is_online(self) -> bool:
         return self.state is ServerState.ONLINE
+
+
+class StatusProvider(Protocol):
+    """Where the server status comes from (STATUS_SOURCE): DatHost or a Steam query."""
+
+    async def fetch(self) -> ServerStatus:
+        """The current status. Failures are reported as UNKNOWN or OFFLINE, never raised."""
+        ...

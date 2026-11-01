@@ -9,10 +9,11 @@ from dotenv import load_dotenv
 
 from .config import Config
 from .messages import Messages
+from .models import StatusProvider
 from .sources.a2s_query import A2SStatusProvider
 from .sources.dathost import DatHostClient, DatHostConsoleSource, DatHostStatusProvider
 from .sources.docker_logs import DockerLogSource
-from .sources.logs import FileLogSource, NullLogSource
+from .sources.logs import FileLogSource, LogSource, NullLogSource
 from .state import State
 
 log = logging.getLogger("bot")
@@ -40,13 +41,15 @@ class ValheimBot(commands.Bot):
         if "dathost" in (config.status_source, config.event_source):
             self.dathost = DatHostClient(config.dathost_email, config.dathost_password, config.dathost_server_id)
 
+        self.status_provider: StatusProvider
         if config.status_source == "dathost":
             self.status_provider = DatHostStatusProvider(self.dathost, config.max_players)
         else:
             self.status_provider = A2SStatusProvider(config.a2s_host, config.a2s_port, config.max_players)
 
+        self.log_source: LogSource
         if config.event_source == "dathost":
-            self.log_source = DatHostConsoleSource(self.dathost)
+            self.log_source =DatHostConsoleSource(self.dathost)
         elif config.event_source == "docker":
             self.log_source = DockerLogSource(config.docker_container, config.docker_socket)
         elif config.event_source == "file":

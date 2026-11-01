@@ -1,12 +1,7 @@
-"""Sources of Valheim log lines: a local file, or none.
+"""Sources of Valheim log lines: what every source has (LogSource), a local file, or none.
 
 The other two live next to their APIs: DatHostConsoleSource in dathost.py and
-DockerLogSource in docker_logs.py. Every source has the same three methods:
-  read_backlog()    called once at startup: recent lines from before the bot
-                    started. The bot reads them without posting, only to learn
-                    who is already online, so a restart never re-announces anything.
-  read_new_lines()  lines added since the last call.
-  close()           called on shutdown.
+DockerLogSource in docker_logs.py.
 """
 
 from __future__ import annotations
@@ -14,10 +9,28 @@ from __future__ import annotations
 import codecs
 import logging
 from pathlib import Path
+from typing import Protocol
 
 log = logging.getLogger(__name__)
 
 FILE_BACKLOG_BYTES = 256 * 1024
+
+
+class LogSource(Protocol):
+    """Where the server log comes from (EVENT_SOURCE)."""
+
+    async def read_backlog(self) -> list[str]:
+        """Called once at startup: recent lines from before the bot started. The bot reads
+        them without posting, only to learn who is already online, so a restart never
+        re-announces anything."""
+        ...
+
+    async def read_new_lines(self) -> list[str]:
+        """Lines added since the last call."""
+        ...
+
+    async def close(self) -> None:
+        """Called on shutdown. Nothing to do unless a source overrides it."""
 
 
 class LineSplitter:
@@ -47,7 +60,7 @@ class LineSplitter:
         self._partial = ""
 
 
-class FileLogSource:
+class FileLogSource(LogSource):
     """Tails a log file, like `tail -F`. Handles truncation and recreation."""
 
     def __init__(self, path: Path) -> None:
@@ -90,16 +103,10 @@ class FileLogSource:
             self._position = f.tell()
         return self._lines.feed(chunk)
 
-    async def close(self) -> None:
-        pass
 
-
-class NullLogSource:
+class NullLogSource(LogSource):
     async def read_backlog(self) -> list[str]:
         return []
 
     async def read_new_lines(self) -> list[str]:
         return []
-
-    async def close(self) -> None:
-        pass

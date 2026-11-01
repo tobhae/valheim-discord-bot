@@ -19,7 +19,7 @@ from datetime import datetime
 
 import aiohttp
 
-from .logs import LineSplitter
+from .logs import LineSplitter, LogSource
 
 log = logging.getLogger(__name__)
 
@@ -42,7 +42,7 @@ def split_timestamp(line: str) -> tuple[int, str] | None:
         return None
 
 
-class DockerLogSource:
+class DockerLogSource(LogSource):
     def __init__(self, container: str, socket_path: str) -> None:
         self._container = container
         self._socket_path = socket_path

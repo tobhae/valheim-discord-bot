@@ -10,12 +10,12 @@ import logging
 
 import a2s
 
-from ..models import ServerState, ServerStatus
+from ..models import ServerState, ServerStatus, StatusProvider
 
 log = logging.getLogger(__name__)
 
 
-class A2SStatusProvider:
+class A2SStatusProvider(StatusProvider):
     # 1 miss = Status Unknown, 2 misses = Offline
     MISSES_FOR_OFFLINE = 2
 

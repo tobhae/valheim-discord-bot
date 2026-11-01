@@ -19,7 +19,8 @@ from typing import Any
 
 import aiohttp
 
-from ..models import ServerState, ServerStatus
+from ..models import ServerState, ServerStatus, StatusProvider
+from .logs import LogSource
 
 log = logging.getLogger(__name__)
 
@@ -97,7 +98,7 @@ def _object(payload: Any, endpoint: str) -> dict[str, Any]:
     return payload
 
 
-class DatHostStatusProvider:
+class DatHostStatusProvider(StatusProvider):
     def __init__(self, client: DatHostClient, max_players: int | None) -> None:
         self._client = client
         self._max_players = max_players
@@ -165,7 +166,9 @@ def new_lines_since(previous: Sequence[str], current: Sequence[str]) -> list[str
     return list(current)
 
 
-class DatHostConsoleSource:
+class DatHostConsoleSource(LogSource):
+    # No close(): the DatHostClient is shared with the status provider, and the bot closes it.
+
     def __init__(self, client: DatHostClient, window: int = 200) -> None:
         self._client = client
         self._window = window
@@ -192,6 +195,3 @@ class DatHostConsoleSource:
         new = new_lines_since(self._previous, current)
         self._previous = current
         return new
-
-    async def close(self) -> None:
-        pass  # the DatHostClient is shared with the status provider; the bot closes it
