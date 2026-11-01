@@ -125,7 +125,10 @@ class DatHostStatusProvider:
                 metrics = await self._client.get_metrics()
                 online = metrics.get("players_online")
                 if isinstance(online, list):
-                    names = tuple(p["name"] for p in online if isinstance(p, dict) and p.get("name"))
+                    named = tuple(p["name"] for p in online if isinstance(p, dict) and p.get("name"))
+                    # Entries without a name are skipped; only trust a complete list.
+                    if len(named) == players:
+                        names = named
             except DatHostError as exc:
                 log.debug("DatHost metrics fetch failed: %s", exc)
         else:
