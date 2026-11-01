@@ -7,14 +7,11 @@ reads its [display] and [timing] sections, messages.py the switches and texts.
 
 from __future__ import annotations
 
-import logging
 import os
 import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
-
-log = logging.getLogger(__name__)
 
 
 class ConfigError(Exception):
@@ -77,17 +74,6 @@ SETTINGS: dict[str, dict[str, tuple[type, Any]]] = {
         # Discord allows 2 renames per channel per 10 minutes; stay under it.
         "channel_rename_seconds": (int, 300),
     },
-}
-
-# Settings that moved from .env to config.toml; a leftover in .env is ignored with a warning.
-_MOVED_FROM_ENV = {
-    "SERVER_NAME": "[display] server_name",
-    "MAX_PLAYERS": "[display] max_players",
-    "STATUS_CATEGORY_NAME": "[display] category_name",
-    "STATUS_POLL_SECONDS": "[timing] status_poll_seconds",
-    "EVENT_POLL_SECONDS": "[timing] event_poll_seconds",
-    "CHANNEL_RENAME_SECONDS": "[timing] channel_rename_seconds",
-    "MESSAGES_FILE": "CONFIG_FILE in .env (the file is now config.toml)",
 }
 
 
@@ -160,10 +146,6 @@ class Config:
 
     @classmethod
     def load(cls) -> Config:
-        for name, new_place in _MOVED_FROM_ENV.items():
-            if os.environ.get(name, "").strip():
-                log.warning("%s in .env is no longer used; set it as %s", name, new_place)
-
         config_file = Path(_get("CONFIG_FILE", "config.toml"))
         settings = read_settings(config_file)
         status_source = _choice("STATUS_SOURCE", "dathost", {"dathost", "a2s"})
