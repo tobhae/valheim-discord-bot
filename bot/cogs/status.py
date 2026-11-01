@@ -264,8 +264,11 @@ class StatusCog(commands.Cog):
         return self.bot.state.get("rename_after", {}).get(str(channel_id), 0.0)
 
     def _set_rename_after(self, channel_id: int, when: float) -> None:
-        # Saved in state.json so a bot restart doesn't forget a recent rename.
-        rename_after = {**self.bot.state.get("rename_after", {}), str(channel_id): when}
+        # Saved in state.json so a bot restart doesn't forget a recent rename. Expired
+        # entries mean the same as none, so they're dropped (e.g. deleted channels).
+        now = time.time()
+        rename_after = {key: until for key, until in self.bot.state.get("rename_after", {}).items() if until > now}
+        rename_after[str(channel_id)] = when
         self.bot.state.set("rename_after", rename_after)
 
     async def _rename(self, channel: discord.VoiceChannel | discord.CategoryChannel, name: str) -> None:
