@@ -92,6 +92,10 @@ class ValheimBot(commands.Bot):
         except (discord.HTTPException, discord.RateLimited) as exc:
             log.warning("Could not post event: %s", exc)
 
+    async def post_player_event(self, switch: str, name: str) -> None:
+        """Post a player's event, e.g. "player_joined"; the name is escaped for Discord."""
+        await self.post_event(switch, name=discord.utils.escape_markdown(name), server=self.config.server_name)
+
 
 def run() -> None:
     # Reads .env when running outside Docker; variables already set (e.g. by compose) win.

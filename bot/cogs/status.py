@@ -339,9 +339,9 @@ class StatusCog(commands.Cog):
                 and previous.player_names is not None and current.player_names is not None:
             before, after = set(previous.player_names), set(current.player_names)
             for name in sorted(after - before):
-                await post("player_joined", name=discord.utils.escape_markdown(name), server=server)
+                await self.bot.post_player_event("player_joined", name)
             for name in sorted(before - after):
-                await post("player_left", name=discord.utils.escape_markdown(name), server=server)
+                await self.bot.post_player_event("player_left", name)
 
     # --- /status --------------------------------------------------------------
 

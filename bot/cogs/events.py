@@ -5,7 +5,6 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
-import discord
 from discord.ext import commands, tasks
 
 from ..events import EventParser, PlayerDied, PlayerJoined, PlayerLeft, RaidStarted
@@ -46,7 +45,7 @@ class EventsCog(commands.Cog):
             # Events are still detected (and logged) when their switch is off.
             if switch := PLAYER_EVENTS.get(type(event)):
                 log.info("%s: %s", switch, event.name)
-                await self.bot.post_event(switch, name=discord.utils.escape_markdown(event.name), server=server)
+                await self.bot.post_player_event(switch, event.name)
             elif isinstance(event, RaidStarted):
                 log.info("Raid: %s", event.raid)
                 if attackers := self.bot.messages.raid_attackers(event.raid):
