@@ -11,7 +11,7 @@ from bot.events import EventParser, PlayerDied, PlayerJoined, PlayerLeft, RaidSt
 from bot.messages import Messages
 from bot.models import ServerState, ServerStatus
 from bot.sources.dathost import new_lines_since
-from bot.sources.logs import FileLogSource
+from bot.sources.logs import FileLogSource, LineSplitter
 
 # Your real config.toml must always load; the other tests use their own
 # templates below so editing your texts never breaks them.
@@ -127,6 +127,18 @@ def test_file_source(tmp_path):
     assert asyncio.run(source.read_new_lines()) == ["partial done"]  # waits for the line to finish
 
 
+def test_line_splitter():
+    splitter = LineSplitter()
+    data = "Bjørn\r\nÅsa\nhalf".encode()
+    cut = data.index("ø".encode()) + 1  # in the middle of the two bytes of "ø"
+    assert splitter.feed(data[:cut]) == []
+    assert splitter.feed(data[cut:]) == ["Bjørn", "Åsa"]
+    assert splitter.feed(b" line\n") == ["half line"]
+    assert splitter.feed(b"no newline") == []
+    assert splitter.flush() == "no newline"
+    assert splitter.flush() is None
+
+
 def test_channel_names(tmp_path):
     messages = _load(tmp_path)
 
@@ -178,6 +190,29 @@ def test_empty_text_is_rejected(tmp_path):
         _load(tmp_path, events={"raid": ""})
 
 
+@pytest.mark.parametrize("extra, error", [
+    ('[switch]\ndeath = false', r"unknown section\(s\) \[switch\]"),
+    ('raids = "x"', "raids must be a section"),
+])
+def test_bad_sections_are_rejected(tmp_path, extra, error):
+    path = tmp_path / "config.toml"
+    path.write_text(f"{extra}\n{_toml(TEST_TEMPLATES)}", encoding="utf-8")
+    with pytest.raises(ConfigError, match=error):
+        Messages.load(path)
+
+
+def test_unknown_text_is_rejected(tmp_path):
+    with pytest.raises(ConfigError, match=r"unknown text\(s\) server_restarting under \[events\]"):
+        _load(tmp_path, events={"server_restarting": "x"})
+
+
+def test_lists_only_under_events(tmp_path):
+    messages = _load(tmp_path, events={"death": ["a {name}", "b {name}"]})
+    assert messages.render("events.death", name="x") in ("a x", "b x")
+    with pytest.raises(ConfigError, match="must be a single text"):
+        _load(tmp_path, presence={"online": ["a", "b"]})
+
+
 def test_backlog_replay_knows_who_is_online():
     parser = EventParser()
     for line in [
@@ -215,6 +250,13 @@ def test_state_skips_unchanged_writes(tmp_path):
     assert State(path).get("rename_after") == {"1": 5.0}
 
 
+def test_state_that_is_not_an_object_starts_empty(tmp_path):
+    from bot.state import State
+    path = tmp_path / "state.json"
+    path.write_text("[1, 2]")
+    assert State(path).get("online_since") is None
+
+
 def test_settings_defaults_and_values(tmp_path):
     path = tmp_path / "config.toml"
     path.write_text('[display]\nserver_name = "Midgard"\n[timing]\nevent_poll_seconds = 5\n', encoding="utf-8")
@@ -232,6 +274,7 @@ def test_settings_defaults_and_values(tmp_path):
     (f'[display]\ncategory_name = "{"x" * 101}"', "at most 100 characters"),
     ('[timing]\nchannel_rename_seconds = 60', "below 300"),
     ('[timing]\nevent_poll_seconds = 0', "at least 1"),
+    ('display = "Midgard"', "must be a section"),
 ])
 def test_bad_settings_are_rejected(tmp_path, toml, error):
     path = tmp_path / "config.toml"
