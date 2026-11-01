@@ -20,6 +20,33 @@ log = logging.getLogger(__name__)
 FILE_BACKLOG_BYTES = 256 * 1024
 
 
+class LineSplitter:
+    """Turns bytes arriving in chunks into text lines.
+
+    A chunk can end in the middle of a line or of a multi-byte character (å, ø...);
+    both are kept until the next chunk completes them.
+    """
+
+    def __init__(self) -> None:
+        self._decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        self._partial = ""
+
+    def feed(self, chunk: bytes) -> list[str]:
+        """The lines completed by this chunk."""
+        *lines, self._partial = (self._partial + self._decoder.decode(chunk)).split("\n")
+        return [line.rstrip("\r") for line in lines]
+
+    def flush(self) -> str | None:
+        """The unterminated last line once the input has ended, if any."""
+        rest = self._partial + self._decoder.decode(b"", final=True)
+        self.reset()
+        return rest.rstrip("\r") or None
+
+    def reset(self) -> None:
+        self._decoder.reset()
+        self._partial = ""
+
+
 class FileLogSource:
     """Tails a log file, like `tail -F`. Handles truncation and recreation."""
 
@@ -27,9 +54,8 @@ class FileLogSource:
         self._path = path
         self._position = 0  # set to the end of the file by read_backlog()
         self._inode: int | None = None
-        self._partial = ""
-        # Keeps a multi-byte character (å, ø...) intact when a read ends in the middle of it.
-        self._decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
+        # Keeps an unterminated last line until the writer finishes it.
+        self._lines = LineSplitter()
 
     async def read_backlog(self) -> list[str]:
         try:
@@ -53,8 +79,8 @@ class FileLogSource:
             return []
         if stat.st_ino != self._inode or stat.st_size < self._position:
             log.info("%s was created, rotated or truncated, reading from start", self._path)
-            self._position, self._inode, self._partial = 0, stat.st_ino, ""
-            self._decoder.reset()
+            self._position, self._inode = 0, stat.st_ino
+            self._lines.reset()
         if stat.st_size == self._position:
             return []
 
@@ -62,12 +88,7 @@ class FileLogSource:
             f.seek(self._position)
             chunk = f.read()
             self._position = f.tell()
-
-        text = self._partial + self._decoder.decode(chunk)
-        lines = text.split("\n")
-        # Keep an unterminated last line until the writer finishes it.
-        self._partial = lines.pop()
-        return [line.rstrip("\r") for line in lines]
+        return self._lines.feed(chunk)
 
     async def close(self) -> None:
         pass

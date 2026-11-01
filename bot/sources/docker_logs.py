@@ -11,7 +11,6 @@ https://docs.docker.com/reference/api/engine/latest/#tag/Container/operation/Con
 from __future__ import annotations
 
 import asyncio
-import codecs
 import contextlib
 import logging
 import struct
@@ -19,6 +18,8 @@ import time
 from datetime import datetime
 
 import aiohttp
+
+from .logs import LineSplitter
 
 log = logging.getLogger(__name__)
 
@@ -127,16 +128,12 @@ class DockerLogSource:
 
 async def _lines(resp: aiohttp.ClientResponse):
     """Text lines from a logs response."""
-    # Keeps a multi-byte character (å, ø...) intact when a chunk ends in the middle of it.
-    decoder = codecs.getincrementaldecoder("utf-8")(errors="replace")
-    pending = ""
+    splitter = LineSplitter()
     async for chunk in _chunks(resp):
-        pending += decoder.decode(chunk)
-        *done, pending = pending.split("\n")
-        for line in done:
-            yield line.rstrip("\r")
-    if pending := pending + decoder.decode(b"", final=True):
-        yield pending.rstrip("\r")
+        for line in splitter.feed(chunk):
+            yield line
+    if rest := splitter.flush():
+        yield rest
 
 
 async def _chunks(resp: aiohttp.ClientResponse):
