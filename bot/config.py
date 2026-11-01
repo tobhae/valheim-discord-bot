@@ -56,6 +56,14 @@ def read_toml(path: Path) -> dict[str, Any]:
         raise ConfigError(f"{path} is not valid TOML: {exc}") from None
 
 
+def toml_section(data: dict[str, Any], name: str, path: Path) -> dict[str, Any]:
+    """A [section] of config.toml, empty if it's missing."""
+    value = data.get(name, {})
+    if not isinstance(value, dict):
+        raise ConfigError(f"{path}: {name} must be a section ([{name}] on its own line), got {value!r}")
+    return value
+
+
 # config.toml section -> setting -> (type, default). A setting missing from the file uses its default.
 SETTINGS: dict[str, dict[str, tuple[type, Any]]] = {
     "display": {
@@ -88,7 +96,7 @@ def read_settings(path: Path) -> dict[str, Any]:
     data = read_toml(path)
     values: dict[str, Any] = {}
     for section, settings in SETTINGS.items():
-        given = data.get(section, {})
+        given = toml_section(data, section, path)
         if unknown := set(given) - set(settings):
             raise ConfigError(
                 f"{path}: unknown setting(s) {', '.join(sorted(unknown))} under [{section}]. "

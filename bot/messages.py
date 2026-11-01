@@ -12,7 +12,7 @@ import random
 import string
 from pathlib import Path
 
-from .config import ConfigError, read_toml
+from .config import SETTINGS, ConfigError, read_toml, toml_section
 
 _STATUS = {"server", "state", "players", "max_players", "uptime", "world"}
 
@@ -42,6 +42,15 @@ SWITCHES = (
     "server_online", "server_offline", "player_joined", "player_left", "death", "raid",
 )
 
+# Text section -> the texts it holds.
+TEXT_SECTIONS: dict[str, list[str]] = {}
+for _key in SCHEMA:
+    _section, _name = _key.split(".")
+    TEXT_SECTIONS.setdefault(_section, []).append(_name)
+
+# Every section config.toml may have; [display] and [timing] come from config.py.
+SECTIONS = (*SETTINGS, "switches", *TEXT_SECTIONS, "raids")
+
 
 def _placeholders(template: str) -> set[str]:
     return {field for _, field, _, _ in string.Formatter().parse(template) if field is not None}
@@ -56,9 +65,19 @@ class Messages:
     @classmethod
     def load(cls, path: Path) -> Messages:
         data = read_toml(path)
+        if unknown := set(data) - set(SECTIONS):
+            raise ConfigError(
+                f"{path}: unknown section(s) {', '.join(f'[{s}]' for s in sorted(unknown))}. "
+                f"Known: {', '.join(f'[{s}]' for s in SECTIONS)}"
+            )
+        for section, names in TEXT_SECTIONS.items():
+            if unknown := set(toml_section(data, section, path)) - set(names):
+                raise ConfigError(
+                    f"{path}: unknown text(s) {', '.join(sorted(unknown))} under [{section}]. Known: {', '.join(names)}"
+                )
 
         switches = dict.fromkeys(SWITCHES, True)
-        for name, value in data.get("switches", {}).items():
+        for name, value in toml_section(data, "switches", path).items():
             if name not in switches:
                 raise ConfigError(f"{path}: unknown switch {name!r} under [switches]. Known: {', '.join(SWITCHES)}")
             if not isinstance(value, bool):
@@ -92,7 +111,7 @@ class Messages:
                     )
             templates[key] = options
 
-        raids = data.get("raids", {})
+        raids = toml_section(data, "raids", path)
         if not all(isinstance(v, str) for v in raids.values()):
             raise ConfigError(f"{path}: every entry under [raids] must be a text")
         return cls(templates, raids, switches)

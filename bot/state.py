@@ -20,7 +20,10 @@ class State:
         self._data: dict[str, Any] = {}
         if path.exists():
             try:
-                self._data = json.loads(path.read_text())
+                data = json.loads(path.read_text())
+                if not isinstance(data, dict):
+                    raise ValueError("not a JSON object")
+                self._data = data
             except (OSError, ValueError):
                 log.warning("Could not read %s, starting with empty state", path)
 
