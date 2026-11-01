@@ -365,7 +365,8 @@ class StatusCog(commands.Cog):
         if status.address:
             embed.add_field(name="Address", value=f"`{status.address}`", inline=False)
         if status.player_names:
-            embed.add_field(name="Online now", value="\n".join(status.player_names), inline=False)
+            names = (discord.utils.escape_markdown(name) for name in status.player_names)
+            embed.add_field(name="Online now", value="\n".join(names), inline=False)
         await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
