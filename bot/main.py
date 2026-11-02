@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import logging
 import os
+import time
 
 import discord
 from discord.ext import commands
@@ -36,6 +37,7 @@ class ValheimBot(commands.Bot):
         self.config = config
         self.state = State(config.state_file)
         self.messages = Messages.load(config.config_file)
+        self._last_mention_reply: dict[int, float] = {}  # user id -> time.monotonic()
 
         self.dathost: DatHostClient | None = None
         if "dathost" in (config.status_source, config.event_source):
@@ -71,8 +73,27 @@ class ValheimBot(commands.Bot):
 
     async def on_message(self, message: discord.Message) -> None:
         # Slash commands only. The default would treat "@bot <word>" as a prefix command
-        # and log an error traceback for every unknown one.
-        pass
+        # and log an error traceback for every unknown one. The only thing done here is
+        # the mention easter egg; the mention lists arrive without the message content intent.
+        if message.author.bot or not self.messages.enabled("mention_reply"):
+            return
+        own_role = message.guild.self_role if message.guild else None
+        if self.user not in message.mentions and (own_role is None or own_role not in message.role_mentions):
+            return
+        now = time.monotonic()
+        last = self._last_mention_reply.get(message.author.id)
+        if last is not None and now - last < self.config.mention_cooldown_seconds:
+            return
+        self._last_mention_reply[message.author.id] = now
+        text = self.messages.render(
+            "replies.mention",
+            name=discord.utils.escape_markdown(message.author.display_name),
+            server=self.config.server_name,
+        )
+        try:
+            await message.reply(text, allowed_mentions=discord.AllowedMentions.none())
+        except (discord.HTTPException, discord.RateLimited) as exc:
+            log.warning("Could not reply to mention: %s", exc)
 
     async def close(self) -> None:
         await self.log_source.close()

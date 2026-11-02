@@ -73,6 +73,7 @@ SETTINGS: dict[str, dict[str, tuple[type, Any]]] = {
         "event_poll_seconds": (int, 15),
         # Discord allows 2 renames per channel per 10 minutes; stay under it.
         "channel_rename_seconds": (int, 300),
+        "mention_cooldown_seconds": (int, 60),
     },
 }
 
@@ -140,6 +141,7 @@ class Config:
     status_poll_seconds: int
     event_poll_seconds: int
     channel_rename_seconds: int
+    mention_cooldown_seconds: int
 
     state_file: Path
     config_file: Path
@@ -175,6 +177,7 @@ class Config:
             status_poll_seconds=settings["status_poll_seconds"],
             event_poll_seconds=settings["event_poll_seconds"],
             channel_rename_seconds=settings["channel_rename_seconds"],
+            mention_cooldown_seconds=settings["mention_cooldown_seconds"],
             state_file=Path(_get("STATE_FILE", "data/state.json")),
             config_file=config_file,
         )

@@ -34,12 +34,17 @@ SCHEMA: dict[str, set[str]] = {
     "events.death": {"name", "server"},
     "events.raid": {"server", "attackers", "raid"},
     "events.raid_unknown": {"server", "raid"},
+    "replies.mention": {"name", "server"},
 }
+
+# Text sections where a text may be a list, picked from at random.
+LIST_SECTIONS = ("events", "replies")
 
 # A switch missing from the file counts as on.
 SWITCHES = (
     "category_bar", "status_row", "player_row", "player_names", "presence",
     "server_online", "server_offline", "player_joined", "player_left", "death", "raid",
+    "mention_reply",
 )
 
 # Text section -> the texts it holds.
@@ -90,8 +95,11 @@ class Messages:
             value = data.get(section, {}).get(name)
             if value is None:
                 raise ConfigError(f"{path}: missing {name} = \"...\" under [{section}]")
-            if isinstance(value, list) and section != "events":
-                raise ConfigError(f"{path}: [{section}] {name} must be a single text (lists only work under [events])")
+            if isinstance(value, list) and section not in LIST_SECTIONS:
+                raise ConfigError(
+                    f"{path}: [{section}] {name} must be a single text "
+                    f"(lists only work under {', '.join(f'[{s}]' for s in LIST_SECTIONS)})"
+                )
             options = [value] if isinstance(value, str) else value
             if not isinstance(options, list) or not all(isinstance(o, str) for o in options):
                 raise ConfigError(f"{path}: [{section}] {name} must be a text or a list of texts")
