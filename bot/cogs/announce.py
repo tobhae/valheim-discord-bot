@@ -232,6 +232,9 @@ class AnnounceCog(commands.Cog):
             needed["Embed Links"] = perms.embed_links
         if image is not None:
             needed["Attach Files"] = perms.attach_files
+        if mention is not None and (mention.is_default() or not mention.mentionable):
+            # Without it Discord posts the message but silently drops the ping.
+            needed["Mention Everyone"] = perms.mention_everyone
         missing = [name for name, ok in needed.items() if not ok]
         if missing:
             listed = " and ".join(f"*{name}*" for name in missing)
