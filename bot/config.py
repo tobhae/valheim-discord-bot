@@ -47,8 +47,12 @@ def _choice(name: str, default: str, choices: set[str]) -> str:
 def read_toml(path: Path) -> dict[str, Any]:
     try:
         return tomllib.loads(path.read_text(encoding="utf-8"))
-    except FileNotFoundError:
-        raise ConfigError(f"Config file {path} not found (set CONFIG_FILE)") from None
+    except OSError as exc:
+        # Also a folder: Docker creates one when compose mounts a config.toml that doesn't exist.
+        raise ConfigError(
+            f"Can't read config file {path} ({exc.strerror}): copy config.example.toml to config.toml"
+            " (or set CONFIG_FILE)"
+        ) from None
     except tomllib.TOMLDecodeError as exc:
         raise ConfigError(f"{path} is not valid TOML: {exc}") from None
 
