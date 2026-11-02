@@ -5,3 +5,4 @@ dev/devlogs/
 dev/devserver/
 __pycache__/
 .env
+config.toml
