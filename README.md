@@ -10,7 +10,7 @@ A Discord bot for one Valheim server, built for servers hosted at [DatHost](http
   card. Right-click → **Apps → Edit announcement** edits it afterwards.
 - **`/status`:** state, players, uptime, world and address, visible only to you.
 - **Configurable:** server name, player limit, category name, every text, and an on/off switch for each
-  feature, in [config.toml](config.toml).
+  feature, in `config.toml` (copied from [config.example.toml](config.example.toml)).
 
 ## How it works
 
@@ -61,7 +61,12 @@ Running and testing it locally, including a local Valheim server: [dev/README.md
 
 ```bash
 cp .env.example .env
+cp config.example.toml config.toml
 ```
+
+Both copies are yours: they aren't committed, so pulling updates never overwrites them. When an
+update adds a new text or setting, the bot names it at startup; copy it over from
+[config.example.toml](config.example.toml).
 
 Fill in the Discord values from above, and your DatHost login:
 
@@ -81,7 +86,7 @@ Consider a dedicated DatHost sub-account with access to only this server. The bo
 Every other `.env` setting is explained in [.env.example](.env.example).
 
 Then set your server's name, its player limit and the sidebar category's name under `[display]` in
-[config.toml](config.toml):
+`config.toml`:
 
 ```toml
 [display]
@@ -90,8 +95,9 @@ max_players   = 10
 category_name = "Server Status"
 ```
 
-The rule of thumb: `.env` holds secrets and what differs per machine, and isn't committed.
+The rule of thumb: `.env` holds secrets and what differs per machine.
 `config.toml` holds what the bot shows and does: display settings, timing, switches and texts.
+Neither is committed.
 
 ## 3. Run it with Docker
 
@@ -128,7 +134,7 @@ Local testing has a few more differences, listed in [dev/README.md](dev/README.m
 
 ## Usage
 
-- **Texts, switches and display settings:** change them in [config.toml](config.toml), then restart
+- **Texts, switches and display settings:** change them in `config.toml`, then restart
   (`docker compose restart bot`). A typo in a setting, `{placeholder}` or switch stops the bot at
   startup with an error naming it.
   - **Rows:** switching a row off deletes the channel the bot created for it; switching it back on

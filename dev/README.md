@@ -19,6 +19,7 @@ Everything below runs from the repository root. The local-testing files live in 
 
 ```bash
 cp .env.example .env # DISCORD_TOKEN, DISCORD_GUILD_ID, EVENTS_CHANNEL_ID
+cp config.example.toml config.toml
 python -m venv .venv
 .venv/bin/pip install -r requirements-dev.txt
 .venv/bin/pytest # parsing, templates, state (short output, use -v for one line per test)
