@@ -323,8 +323,13 @@ class StatusCog(commands.Cog):
             text = self.bot.messages.render("presence.online" if status.is_online else "presence.offline", **values)
         if (online, text) == self._presence:
             return  # unchanged, don't send it again
-        self._presence = (online, text)
         await self.bot.change_presence(status=online, activity=discord.Game(text) if text else None)
+        self._presence = (online, text)  # only after it was sent, so a failed send is retried
+
+    @commands.Cog.listener()
+    async def on_ready(self) -> None:
+        # After a full reconnect Discord shows the bot without a presence; send it again.
+        self._presence = None
 
     async def _announce_changes(self, previous: ServerStatus | None, current: ServerStatus) -> None:
         if previous is None:
