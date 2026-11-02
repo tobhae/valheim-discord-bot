@@ -13,9 +13,11 @@ from bot.models import ServerState, ServerStatus
 from bot.sources.dathost import new_lines_since
 from bot.sources.logs import FileLogSource, LineSplitter
 
-# Your real config.toml must always load; the other tests use their own
-# templates below so editing your texts never breaks them.
-REAL_CONFIG = Path(__file__).parent.parent / "config.toml"
+# The committed example must always load, and so must your own config.toml if you have one
+# (it catches a key you forgot to copy over). The other tests use their own templates below
+# so editing your texts never breaks them.
+EXAMPLE_CONFIG = Path(__file__).parent.parent / "config.example.toml"
+OWN_CONFIG = Path(__file__).parent.parent / "config.toml"
 
 TEST_TEMPLATES = {
     "status_channel": {
@@ -28,6 +30,7 @@ TEST_TEMPLATES = {
         name: "x" for name in
         ("server_online", "server_offline", "player_joined", "player_left", "death", "raid", "raid_unknown")
     },
+    "replies": {"mention": "x"},
 }
 
 
@@ -47,9 +50,15 @@ def _load(tmp_path, switches="", **overrides):
     return Messages.load(path)
 
 
-def test_real_config_file_loads():
-    Messages.load(REAL_CONFIG)
-    read_settings(REAL_CONFIG)
+def test_example_config_loads():
+    Messages.load(EXAMPLE_CONFIG)
+    read_settings(EXAMPLE_CONFIG)
+
+
+@pytest.mark.skipif(not OWN_CONFIG.exists(), reason="no config.toml (copy config.example.toml)")
+def test_own_config_loads():
+    Messages.load(OWN_CONFIG)
+    read_settings(OWN_CONFIG)
 
 
 def test_deaths_and_duplicates():
@@ -206,9 +215,10 @@ def test_unknown_text_is_rejected(tmp_path):
         _load(tmp_path, events={"server_restarting": "x"})
 
 
-def test_lists_only_under_events(tmp_path):
-    messages = _load(tmp_path, events={"death": ["a {name}", "b {name}"]})
+def test_lists_only_under_events_and_replies(tmp_path):
+    messages = _load(tmp_path, events={"death": ["a {name}", "b {name}"]}, replies={"mention": ["c {name}", "d"]})
     assert messages.render("events.death", name="x") in ("a x", "b x")
+    assert messages.render("replies.mention", name="x") in ("c x", "d")
     with pytest.raises(ConfigError, match="must be a single text"):
         _load(tmp_path, presence={"online": ["a", "b"]})
 
@@ -263,6 +273,7 @@ def test_settings_defaults_and_values(tmp_path):
     settings = read_settings(path)
     assert settings["server_name"] == "Midgard" and settings["event_poll_seconds"] == 5
     assert settings["status_poll_seconds"] == 30  # missing settings use their default
+    assert settings["mention_cooldown_seconds"] == 60
 
 
 @pytest.mark.parametrize("toml, error", [
