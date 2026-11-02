@@ -77,8 +77,14 @@ class ValheimBot(commands.Bot):
         # the mention easter egg; the mention lists arrive without the message content intent.
         if message.author.bot or not self.messages.enabled("mention_reply"):
             return
+        # A reply to the bot puts it in message.mentions (ping is on by default), so for
+        # replies only count a mention written in the text.
+        if message.type is discord.MessageType.reply:
+            mentioned = self.user.id in message.raw_mentions
+        else:
+            mentioned = self.user in message.mentions
         own_role = message.guild.self_role if message.guild else None
-        if self.user not in message.mentions and (own_role is None or own_role not in message.role_mentions):
+        if not mentioned and (own_role is None or own_role not in message.role_mentions):
             return
         now = time.monotonic()
         last = self._last_mention_reply.get(message.author.id)
