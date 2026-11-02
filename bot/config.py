@@ -70,7 +70,7 @@ SETTINGS: dict[str, dict[str, tuple[type, Any]]] = {
     "display": {
         "server_name": (str, "Valheim"),
         "max_players": (int, 0),  # 0: not shown, the count appears without "/max"
-        "category_name": (str, "📊 Server Status"),
+        "category_name": (str, "Server Status"),
     },
     "timing": {
         "status_poll_seconds": (int, 30),

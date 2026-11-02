@@ -8,10 +8,10 @@
 
 [display]
 # Shown as {server} in the texts below.
-server_name   = "My Valheim Server"
+server_name   = "Valheim"
 max_players   = 10
 # Name of the sidebar category. Change it and restart: the bot renames its category.
-category_name = "🛡️ Server Status"
+category_name = "Server Status"
 
 [timing]
 # Time in seconds
