@@ -147,10 +147,11 @@ async def _chunks(resp: aiohttp.ClientResponse):
     while True:
         try:
             header = await resp.content.readexactly(8)
+            _, size = struct.unpack(">BxxxL", header)
+            payload = await resp.content.readexactly(size)
         except asyncio.IncompleteReadError:
-            return
-        _, size = struct.unpack(">BxxxL", header)
-        yield await resp.content.readexactly(size)
+            return  # stream ended, possibly mid-frame; the caller reconnects
+        yield payload
 
 
 def _explain(exc: BaseException) -> str:
