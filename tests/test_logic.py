@@ -11,7 +11,9 @@ from bot.events import EventParser, PlayerDied, PlayerJoined, PlayerLeft, RaidSt
 from bot.messages import Messages
 from bot.models import ServerState, ServerStatus
 from bot.sources.dathost import new_lines_since
+from bot.sources.docker_logs import parse_timestamp, split_timestamp
 from bot.sources.logs import FileLogSource, LineSplitter
+from bot.state import State
 
 # The committed example must always load, and so must your own config.toml if you have one
 # (it catches a key you forgot to copy over). The other tests use their own templates below
@@ -240,7 +242,6 @@ def test_backlog_replay_knows_who_is_online():
 
 
 def test_docker_timestamps():
-    from bot.sources.docker_logs import parse_timestamp, split_timestamp
     a = parse_timestamp("2026-10-28T17:42:48.12345Z")  # Docker drops trailing zeros
     b = parse_timestamp("2026-10-28T17:42:48.123450001Z")
     assert a == 1793209368_123450000 and b == a + 1
@@ -249,7 +250,6 @@ def test_docker_timestamps():
 
 
 def test_state_skips_unchanged_writes(tmp_path):
-    from bot.state import State
     path = tmp_path / "state.json"
     state = State(path)
     state.set("status_category_id", None)
@@ -261,7 +261,6 @@ def test_state_skips_unchanged_writes(tmp_path):
 
 
 def test_state_that_is_not_an_object_starts_empty(tmp_path):
-    from bot.state import State
     path = tmp_path / "state.json"
     path.write_text("[1, 2]")
     assert State(path).get("online_since") is None

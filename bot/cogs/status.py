@@ -60,7 +60,7 @@ def template_values(server_name: str, status: ServerStatus, uptime: float | None
         "server": server_name,
         "state": status.state.value,
         "players": status.players,
-        "max_players": status.max_players if status.max_players else "?",
+        "max_players": status.max_players or "?",
         "uptime": format_uptime(uptime) if uptime is not None else "?",
         "world": status.world or "?",
     }
@@ -77,7 +77,7 @@ def status_channel_name(messages: Messages, values: dict[str, object], status: S
 def players_channel_name(
     messages: Messages, values: dict[str, object], status: ServerStatus, show_names: bool = True
 ) -> str:
-    if status.state is not ServerState.ONLINE or status.players == 0:
+    if not status.is_online or status.players == 0:
         key, extra = "players_channel.empty", {}
     elif not status.player_names or not show_names:
         key, extra = "players_channel.count", {}
@@ -184,14 +184,14 @@ class StatusCog(commands.Cog):
                 category = channel.category
                 break
         else:
-            category = discord.utils.get(guild.categories, name=self.config.status_category_name)
+            category = discord.utils.get(guild.categories, name=self.config.category_name)
         self.bot.state.set("status_category_id", category.id if category else None)
         return category
 
     async def _ensure_category(self, guild: discord.Guild) -> discord.CategoryChannel:
         category = self._category(guild)
         if category is None:
-            category = await guild.create_category(self.config.status_category_name, position=0)
+            category = await guild.create_category(self.config.category_name, position=0)
             self.bot.state.set("status_category_id", category.id)
             log.info("Created category %r", category.name)
         return category
@@ -199,7 +199,7 @@ class StatusCog(commands.Cog):
     async def _sync_category_name(self, guild: discord.Guild) -> None:
         # Through _rename, so it's limited like the rows if Discord stores the name differently.
         if (category := self._category(guild)) is not None:
-            await self._rename(category, self.config.status_category_name)
+            await self._rename(category, self.config.category_name)
 
     async def _ensure_channel(self, guild: discord.Guild, row: Row, initial_name: str) -> discord.VoiceChannel | None:
         channel_id = row.configured_id or self.bot.state.get(row.state_key)
@@ -335,7 +335,7 @@ class StatusCog(commands.Cog):
         if previous is None:
             return  # first poll after startup is the baseline
         post, server = self.bot.post_event, self.config.server_name
-        if previous.state is not ServerState.ONLINE and current.is_online:
+        if not previous.is_online and current.is_online:
             await post("server_online", server=server)
         elif previous.is_online and current.state is ServerState.OFFLINE:
             await post("server_offline", server=server)

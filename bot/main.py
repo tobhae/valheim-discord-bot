@@ -51,7 +51,7 @@ class ValheimBot(commands.Bot):
 
         self.log_source: LogSource
         if config.event_source == "dathost":
-            self.log_source =DatHostConsoleSource(self.dathost)
+            self.log_source = DatHostConsoleSource(self.dathost)
         elif config.event_source == "docker":
             self.log_source = DockerLogSource(config.docker_container, config.docker_socket)
         elif config.event_source == "file":

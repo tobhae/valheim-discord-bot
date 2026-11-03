@@ -137,7 +137,7 @@ class Config:
     docker_container: str | None
     docker_socket: str
 
-    status_category_name: str
+    category_name: str
     status_channel_id: int | None
     players_channel_id: int | None
     events_channel_id: int | None
@@ -154,15 +154,15 @@ class Config:
     def load(cls) -> Config:
         config_file = Path(_get("CONFIG_FILE", "config.toml"))
         settings = read_settings(config_file)
+        settings["max_players"] = settings["max_players"] or None
         status_source = _choice("STATUS_SOURCE", "dathost", {"dathost", "a2s"})
         event_source = _choice("EVENT_SOURCE", "none", {"dathost", "docker", "file", "none"})
 
         needs_dathost = "dathost" in (status_source, event_source)
         return cls(
+            **settings,
             discord_token=_get("DISCORD_TOKEN", required=True),
             guild_id=_int("DISCORD_GUILD_ID", required=True),
-            server_name=settings["server_name"],
-            max_players=settings["max_players"] or None,
             status_source=status_source,
             event_source=event_source,
             dathost_email=_get("DATHOST_EMAIL", required=needs_dathost),
@@ -174,14 +174,9 @@ class Config:
             event_log_file=Path(p) if (p := _get("EVENT_LOG_FILE", required=event_source == "file")) else None,
             docker_container=_get("DOCKER_CONTAINER", required=event_source == "docker"),
             docker_socket=_get("DOCKER_SOCKET", "/var/run/docker.sock"),
-            status_category_name=settings["category_name"],
             status_channel_id=_int("STATUS_CHANNEL_ID"),
             players_channel_id=_int("PLAYERS_CHANNEL_ID"),
             events_channel_id=_int("EVENTS_CHANNEL_ID"),
-            status_poll_seconds=settings["status_poll_seconds"],
-            event_poll_seconds=settings["event_poll_seconds"],
-            channel_rename_seconds=settings["channel_rename_seconds"],
-            mention_cooldown_seconds=settings["mention_cooldown_seconds"],
             state_file=Path(_get("STATE_FILE", "data/state.json")),
             config_file=config_file,
         )
