@@ -1,5 +1,6 @@
 import asyncio
 import json
+import os
 from pathlib import Path
 from unittest.mock import AsyncMock
 
@@ -327,6 +328,33 @@ def test_edit_label():
     assert edit_label("@Vikings") == "Message (keeps the @Vikings ping)"
     long = edit_label("@" + "x" * 50)
     assert len(long) == LABEL_LIMIT and "…" in long
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
+def test_state_refuses_a_folder_it_cannot_write(tmp_path):
+    (tmp_path / "state.json").write_text('{"status_category_id": 1}')
+    tmp_path.chmod(0o555)
+    try:
+        with pytest.raises(ConfigError, match="Can't write to"):
+            State(tmp_path / "state.json")
+    finally:
+        tmp_path.chmod(0o755)
+
+
+@pytest.mark.skipif(os.geteuid() == 0, reason="root ignores file permissions")
+def test_state_refuses_a_file_it_cannot_read(tmp_path):
+    path = tmp_path / "state.json"
+    path.write_text('{"status_category_id": 1}')
+    path.chmod(0o000)
+    with pytest.raises(ConfigError, match="Can't read"):
+        State(path)
+
+
+def test_state_check_leaves_only_the_saved_file(tmp_path):
+    path = tmp_path / "new" / "state.json"
+    State(path).set("key", 1)
+    assert [p.name for p in path.parent.iterdir()] == ["state.json"]
+    assert State(path).get("key") == 1
 
 
 class FakeDatHost(DatHostClient):

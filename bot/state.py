@@ -11,6 +11,8 @@ import logging
 from pathlib import Path
 from typing import Any
 
+from .config import ConfigError
+
 log = logging.getLogger(__name__)
 
 
@@ -24,8 +26,22 @@ class State:
                 if not isinstance(data, dict):
                     raise ValueError("not a JSON object")
                 self._data = data
-            except (OSError, ValueError):
+            except OSError as exc:
+                raise ConfigError(
+                    f"Can't read {path} ({exc}). It must be readable by the bot (uid 1000 in Docker).",
+                ) from None
+            except ValueError:
                 log.warning("Could not read %s, starting with empty state", path)
+        # Without saved channel IDs the bot creates new status rows after every restart, so stop now.
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            tmp = path.with_suffix(".tmp")
+            tmp.touch()
+            tmp.unlink()
+        except OSError as exc:
+            raise ConfigError(
+                f"Can't write to {path.parent} ({exc}). The folder must be writable by the bot (uid 1000 in Docker).",
+            ) from None
 
     def get(self, key: str, default: Any = None) -> Any:
         return self._data.get(key, default)
