@@ -1,16 +1,19 @@
 import asyncio
 import json
 from pathlib import Path
+from unittest.mock import AsyncMock
 
 import pytest
+from aiohttp import web
 
 from bot.cogs.announce import LABEL_LIMIT, MB, edit_label, image_filename, image_problem, split_ping
+from bot.cogs.server import ConfirmView, ServerCog
 from bot.cogs.status import format_uptime, players_channel_name, status_channel_name, template_values
 from bot.config import ConfigError, read_settings
 from bot.events import EventParser, PlayerDied, PlayerJoined, PlayerLeft, RaidStarted
 from bot.messages import Messages
 from bot.models import ServerState, ServerStatus
-from bot.sources.dathost import new_lines_since
+from bot.sources.dathost import DatHostClient, DatHostError, new_lines_since
 from bot.sources.docker_logs import parse_timestamp, split_timestamp
 from bot.sources.logs import FileLogSource, LineSplitter
 from bot.state import State
@@ -324,3 +327,118 @@ def test_edit_label():
     assert edit_label("@Vikings") == "Message (keeps the @Vikings ping)"
     long = edit_label("@" + "x" * 50)
     assert len(long) == LABEL_LIMIT and "…" in long
+
+
+class FakeDatHost(DatHostClient):
+    """Answers get_server from a script (the last answer repeats) and records start and stop."""
+
+    def __init__(self, *answers):
+        super().__init__("email", "password", "id")
+        self.answers = list(answers)
+        self.calls = []
+
+    async def get_server(self):
+        answer = self.answers.pop(0) if len(self.answers) > 1 else self.answers[0]
+        if isinstance(answer, Exception):
+            raise answer
+        return answer
+
+    async def start_server(self):
+        self.calls.append("start")
+
+    async def stop_server(self):
+        self.calls.append("stop")
+
+
+ON, OFF, BOOTING = {"on": True}, {"on": False}, {"on": False, "booting": True}
+
+
+def test_restart_starts_only_once_the_server_is_off():
+    client = FakeDatHost(ON, ON, DatHostError("hiccup"), BOOTING, OFF)
+    asyncio.run(client.restart_server(poll_seconds=0))
+    assert client.calls == ["stop", "start"]
+    assert client.answers == [OFF]  # every check before OFF was used up
+
+
+def test_restart_of_a_stopped_server_only_starts_it():
+    client = FakeDatHost(OFF)
+    asyncio.run(client.restart_server(poll_seconds=0))
+    assert client.calls == ["start"]
+
+
+def test_restart_does_not_start_a_server_that_never_stops():
+    client = FakeDatHost(ON)
+    with pytest.raises(DatHostError, match="didn't stop"):
+        asyncio.run(client.restart_server(poll_seconds=0, timeout=0.01))
+    assert client.calls == ["stop"]
+
+
+def test_dathost_actions_are_posted_and_may_have_an_empty_answer(monkeypatch):
+    seen = []
+
+    async def action(request):
+        seen.append((request.method, request.path))
+        return web.Response(status=204)
+
+    async def server(_request):
+        return web.Response(body=b"<html>maintenance</html>")
+
+    async def scenario():
+        app = web.Application()
+        app.router.add_post("/game-servers/id/start", action)
+        app.router.add_post("/game-servers/id/stop", action)
+        app.router.add_get("/game-servers/id", server)
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "127.0.0.1", 0)
+        await site.start()
+        port = site._server.sockets[0].getsockname()[1]
+        monkeypatch.setattr("bot.sources.dathost.API_BASE", f"http://127.0.0.1:{port}")
+        client = DatHostClient("email", "password", "id")
+        try:
+            await client.start_server()
+            await client.stop_server()
+            with pytest.raises(DatHostError, match="valid JSON"):
+                await client.get_server()
+        finally:
+            await client.close()
+            await runner.cleanup()
+
+    asyncio.run(scenario())
+    assert seen == [("POST", "/game-servers/id/start"), ("POST", "/game-servers/id/stop")]
+
+
+def test_server_commands_skip_needless_calls_and_report_failures():
+    async def scenario():
+        running, stopped = FakeDatHost(ON), FakeDatHost(OFF)
+        assert "already running" in await ServerCog(running)._start()
+        assert "already stopped" in await ServerCog(stopped)._stop()
+        assert running.calls == stopped.calls == []
+
+        assert "Starting" in await ServerCog(stopped)._start()
+        assert stopped.calls == ["start"]
+
+        cog = ServerCog(FakeDatHost(DatHostError("rate limited")))
+        assert "failed: rate limited" in await cog._run("stop", "admin", cog._stop)
+        await cog.busy.acquire()
+        assert "still running" in await cog._run("stop", "admin", cog._stop)
+
+    asyncio.run(scenario())
+
+
+def test_only_the_confirm_button_runs_the_action():
+    async def scenario():
+        action = AsyncMock(return_value="Done.")
+        interaction = AsyncMock()
+
+        view = ConfirmView(interaction, "Stop server", "Stopping...", action)
+        assert view.confirm.label == "Stop server"
+        await view.cancel.callback(interaction)
+        action.assert_not_awaited()
+
+        view = ConfirmView(interaction, "Stop server", "Stopping...", action)
+        await view.confirm.callback(interaction)
+        action.assert_awaited_once()
+        interaction.edit_original_response.assert_awaited_with(content="Done.")
+
+    asyncio.run(scenario())
