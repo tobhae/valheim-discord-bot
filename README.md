@@ -9,6 +9,7 @@ A Discord bot for one Valheim server, built for servers hosted at [DatHost](http
 - **`/announce`:** admins fill in a form and the bot posts it as itself, as a plain message or as an embed
   card. Right-click → **Apps → Edit announcement** edits it afterwards.
 - **`/status`:** state, players, uptime, world and address, visible only to you.
+- **`/start`, `/stop`, `/restart`:** admins control the DatHost server from Discord.
 - **Configurable:** server name, player limit, category name, every text, and an on/off switch for each
   feature, in `config.toml` (copied from [config.example.toml](config.example.toml)).
 
@@ -34,7 +35,7 @@ A Discord bot for one Valheim server, built for servers hosted at [DatHost](http
 | `bot/events.py` | Log line → event (death, join, leave, raid) |
 | `bot/state.py` | `data/state.json`: what the bot remembers across restarts |
 | `bot/sources/` | DatHost API, Steam query, Docker log, log file |
-| `bot/cogs/` | The Discord features: status, events, announce |
+| `bot/cogs/` | The Discord features: status, events, announce, server control |
 
 Running and testing it locally, including a local Valheim server: [dev/README.md](dev/README.md).
 
@@ -81,7 +82,8 @@ DATHOST_SERVER_ID=...   # the ID in the control panel URL: dathost.com/control-p
 The DatHost API uses your account email and password. If you sign in with Google, set a password first.
 Consider a dedicated DatHost sub-account with access to only this server. The bot only reads
 `/game-servers/{id}` (state, player count, address), `/metrics` (player names) and `/console` (the last
-200 log lines). It never sends commands to the server.
+200 log lines). The only commands it sends are `/start` and `/stop`, when an admin uses `/start`, `/stop`
+or `/restart`, so the account needs permission to control the server for those to work.
 
 Every other `.env` setting is explained in [.env.example](.env.example).
 
@@ -152,6 +154,12 @@ Local testing has a few more differences, listed in [dev/README.md](dev/README.m
 - **Edit an announcement:** right-click the bot's message → **Apps → Edit announcement**. The image
   stays, but can't be swapped (post a new announcement for that).
 - **`/status`:** a status card only you can see.
+- **`/start`, `/stop`, `/restart`:** control the server. Only available when the bot uses DatHost.
+  - **Confirmation:** `/stop` and `/restart` ask first, since they kick everyone online.
+  - **Restart:** the bot stops the server, checks every 5 seconds until it reports off, then starts it. If
+    it hasn't stopped after 3 minutes, the bot tells you and doesn't start it.
+  - **Who can use them:** by default only members with *Manage Server* see the commands. Change that per
+    command under **Server Settings → Integrations → your bot**.
 
 **Sidebar delay:** Discord allows only 2 renames per channel every 10 minutes, so the sidebar can lag by
 up to 5 minutes. The presence, `/status` and the event feed update on every poll. The bot remembers its
