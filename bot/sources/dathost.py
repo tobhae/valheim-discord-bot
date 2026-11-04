@@ -1,10 +1,12 @@
-"""Minimal async DatHost API client (read-only).
+"""Minimal async DatHost API client.
 
 API reference: https://dathost.com/reference
 Endpoints used:
   GET /game-servers/{id}          -> on, booting, players_online, ip, ports, valheim_settings
   GET /game-servers/{id}/metrics  -> players_online: [{name}, ...]
   GET /game-servers/{id}/console  -> {"lines": [...]}  (last N console lines)
+  POST /game-servers/{id}/start   -> starts the server (/start, /restart)
+  POST /game-servers/{id}/stop    -> stops the server (/stop, /restart)
 
 Contains the client, the status provider (STATUS_SOURCE=dathost) and the console
 log source (EVENT_SOURCE=dathost).
@@ -12,6 +14,8 @@ log source (EVENT_SOURCE=dathost).
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import time
 from collections.abc import Sequence
@@ -26,10 +30,19 @@ log = logging.getLogger(__name__)
 
 API_BASE = "https://dathost.com/api/0.1"
 DEFAULT_RETRY_AFTER = 60.0
+# Longer than the reads: a timed-out start or stop may still go through, so give it time to answer.
+ACTION_TIMEOUT = aiohttp.ClientTimeout(total=60.0)
+STOP_POLL_SECONDS = 5.0
+STOP_TIMEOUT_SECONDS = 180.0
 
 
 class DatHostError(Exception):
     pass
+
+
+def is_running(server: dict[str, Any]) -> bool:
+    """Whether a server from get_server() is up or on its way up."""
+    return bool(server.get("on") or server.get("booting"))
 
 
 class DatHostClient:
@@ -45,7 +58,7 @@ class DatHostClient:
         if self._session is not None:
             await self._session.close()
 
-    async def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
+    async def _request(self, method: str, path: str, **kwargs: Any) -> bytes:
         remaining = self._cooldown_until - time.monotonic()
         if remaining > 0:
             raise DatHostError(f"rate limited, retrying in {remaining:.0f}s")
@@ -57,7 +70,7 @@ class DatHostClient:
             )
         url = f"{API_BASE}/game-servers/{self._server_id}{path}"
         try:
-            async with self._session.get(url, params=params) as resp:
+            async with self._session.request(method, url, **kwargs) as resp:
                 if resp.status == 429:
                     try:
                         delay = float(resp.headers.get("Retry-After", DEFAULT_RETRY_AFTER))
@@ -69,14 +82,42 @@ class DatHostClient:
                     raise DatHostError("authentication failed (check DATHOST_EMAIL / DATHOST_PASSWORD)")
                 if resp.status == 404:
                     raise DatHostError("server not found (check DATHOST_SERVER_ID)")
-                if resp.status != 200:
+                if not 200 <= resp.status < 300:
                     raise DatHostError(f"unexpected HTTP {resp.status}")
-                try:
-                    return await resp.json(content_type=None)
-                except ValueError:  # e.g. an HTML maintenance page
-                    raise DatHostError("response wasn't valid JSON") from None
+                return await resp.read()
         except (aiohttp.ClientError, TimeoutError) as exc:
             raise DatHostError(f"request failed: {exc.__class__.__name__}") from None
+
+    async def _get(self, path: str, params: dict[str, Any] | None = None) -> Any:
+        body = await self._request("GET", path, params=params)
+        try:
+            return json.loads(body)
+        except ValueError:  # e.g. an HTML maintenance page
+            raise DatHostError("response wasn't valid JSON") from None
+
+    async def start_server(self) -> None:
+        await self._request("POST", "/start", timeout=ACTION_TIMEOUT)
+
+    async def stop_server(self) -> None:
+        await self._request("POST", "/stop", timeout=ACTION_TIMEOUT)
+
+    async def restart_server(
+        self, poll_seconds: float = STOP_POLL_SECONDS, timeout: float = STOP_TIMEOUT_SECONDS,
+    ) -> None:
+        """Stop the server, wait until it reports off, then start it. Off already means just starting it."""
+        if is_running(await self.get_server()):
+            await self.stop_server()
+            deadline = time.monotonic() + timeout
+            while True:
+                if time.monotonic() >= deadline:
+                    raise DatHostError("the server didn't stop in time, so it wasn't started again")
+                await asyncio.sleep(poll_seconds)
+                try:
+                    if not is_running(await self.get_server()):
+                        break
+                except DatHostError as exc:  # a failed check says nothing about the server, so check again
+                    log.debug("DatHost check during restart failed: %s", exc)
+        await self.start_server()
 
     async def get_server(self) -> dict[str, Any]:
         return _object(await self._get(""), "server")

@@ -19,7 +19,7 @@ from .state import State
 
 log = logging.getLogger("bot")
 
-EXTENSIONS = ("bot.cogs.status", "bot.cogs.events", "bot.cogs.announce")
+EXTENSIONS = ("bot.cogs.status", "bot.cogs.events", "bot.cogs.announce", "bot.cogs.server")
 
 
 class ValheimBot(commands.Bot):
