@@ -377,7 +377,7 @@ def test_dathost_actions_are_posted_and_may_have_an_empty_answer(monkeypatch):
     seen = []
 
     async def action(request):
-        seen.append((request.method, request.path))
+        seen.append((request.method, request.path, request.headers["Authorization"]))
         return web.Response(status=204)
 
     async def server(_request):
@@ -405,7 +405,8 @@ def test_dathost_actions_are_posted_and_may_have_an_empty_answer(monkeypatch):
             await runner.cleanup()
 
     asyncio.run(scenario())
-    assert seen == [("POST", "/game-servers/id/start"), ("POST", "/game-servers/id/stop")]
+    login = "Basic ZW1haWw6cGFzc3dvcmQ="  # base64 of email:password
+    assert seen == [("POST", "/game-servers/id/start", login), ("POST", "/game-servers/id/stop", login)]
 
 
 def test_server_commands_skip_needless_calls_and_report_failures():

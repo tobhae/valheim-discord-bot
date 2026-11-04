@@ -47,7 +47,7 @@ def is_running(server: dict[str, Any]) -> bool:
 
 class DatHostClient:
     def __init__(self, email: str, password: str, server_id: str, timeout: float = 10.0) -> None:
-        self._auth = aiohttp.BasicAuth(email, password)
+        self._auth = aiohttp.encode_basic_auth(email, password)
         self._server_id = server_id
         self._timeout = aiohttp.ClientTimeout(total=timeout)
         self._session: aiohttp.ClientSession | None = None
@@ -64,9 +64,12 @@ class DatHostClient:
             raise DatHostError(f"rate limited, retrying in {remaining:.0f}s")
         if self._session is None:
             self._session = aiohttp.ClientSession(
-                auth=self._auth,
                 timeout=self._timeout,
-                headers={"Accept": "application/json", "User-Agent": "valheim-discord-bot"},
+                headers={
+                    "Authorization": self._auth,
+                    "Accept": "application/json",
+                    "User-Agent": "valheim-discord-bot",
+                },
             )
         url = f"{API_BASE}/game-servers/{self._server_id}{path}"
         try:
