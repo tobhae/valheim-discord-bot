@@ -7,7 +7,6 @@ from typing import Protocol
 
 class ServerState(StrEnum):
     ONLINE = "online"
-    STARTING = "starting"
     OFFLINE = "offline"
     UNKNOWN = "unknown"  # we could not reach the API / server at all
 

@@ -154,12 +154,8 @@ class DatHostStatusProvider(StatusProvider):
             log.warning("DatHost status fetch failed: %s", exc)
             return ServerStatus(ServerState.UNKNOWN, max_players=self._max_players)
 
-        if server.get("booting"):
-            state = ServerState.STARTING
-        elif server.get("on"):
-            state = ServerState.ONLINE
-        else:
-            state = ServerState.OFFLINE
+        # A booting server can't be joined yet, so it counts as offline.
+        state = ServerState.ONLINE if server.get("on") and not server.get("booting") else ServerState.OFFLINE
 
         players = server.get("players_online")
         players = players if isinstance(players, int) and players >= 0 else 0

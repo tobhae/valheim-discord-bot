@@ -19,7 +19,6 @@ _STATUS = {"server", "state", "players", "max_players", "uptime", "world"}
 # Template key -> placeholders it may use.
 SCHEMA: dict[str, set[str]] = {
     "status_channel.online": _STATUS,
-    "status_channel.starting": _STATUS,
     "status_channel.offline": _STATUS,
     "status_channel.unknown": _STATUS,
     "players_channel.names": {"server", "names", "players", "max_players"},

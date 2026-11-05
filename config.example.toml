@@ -47,7 +47,6 @@ mention_reply  = true # Easter egg: the bot replies when someone mentions it in 
 # Placeholders: {server} {state} {players} {max_players} {uptime} {world}
 [status_channel]
 online   = "🟢・Online: {uptime}"
-starting = "🟡・Starting..."
 offline  = "🔴・Offline"
 unknown  = "⚪・Status Unknown"
 

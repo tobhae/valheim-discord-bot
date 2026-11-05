@@ -29,7 +29,6 @@ log = logging.getLogger(__name__)
 # Icon and color of the /status card; sidebar and presence texts live in config.toml.
 STATE_STYLE = {
     ServerState.ONLINE: ("🟢", discord.Color.green()),
-    ServerState.STARTING: ("🟡", discord.Color.gold()),
     ServerState.OFFLINE: ("🔴", discord.Color.red()),
     ServerState.UNKNOWN: ("⚪", discord.Color.light_grey()),
 }

@@ -14,7 +14,7 @@ from bot.config import ConfigError, read_settings
 from bot.events import EventParser, PlayerDied, PlayerJoined, PlayerLeft, RaidStarted
 from bot.messages import Messages
 from bot.models import ServerState, ServerStatus
-from bot.sources.dathost import DatHostClient, DatHostError, new_lines_since
+from bot.sources.dathost import DatHostClient, DatHostError, DatHostStatusProvider, new_lines_since
 from bot.sources.docker_logs import parse_timestamp, split_timestamp
 from bot.sources.logs import FileLogSource, LineSplitter
 from bot.state import State
@@ -28,7 +28,7 @@ OWN_CONFIG = Path(__file__).parent.parent / "config.toml"
 TEST_TEMPLATES = {
     "status_channel": {
         "online": "🟢 {server}: {players}/{max_players} online · up {uptime}",
-        "starting": "🟡 {server}", "offline": "🔴 {server}: offline", "unknown": "⚪ {server}",
+        "offline": "🔴 {server}: offline", "unknown": "⚪ {server}",
     },
     "players_channel": {"names": "👥 {names}", "count": "👥 {players} online", "empty": "👥 nobody"},
     "presence": {"online": "{players} online", "offline": "{state}"},
@@ -379,6 +379,12 @@ class FakeDatHost(DatHostClient):
 
 
 ON, OFF, BOOTING = {"on": True}, {"on": False}, {"on": False, "booting": True}
+
+
+def test_booting_server_counts_as_offline():
+    for server in (OFF, BOOTING, {"on": True, "booting": True}):
+        status = asyncio.run(DatHostStatusProvider(FakeDatHost(server), 10).fetch())
+        assert status.state is ServerState.OFFLINE
 
 
 def test_restart_starts_only_once_the_server_is_off():
