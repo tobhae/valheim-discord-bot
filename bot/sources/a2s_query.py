@@ -16,8 +16,8 @@ log = logging.getLogger(__name__)
 
 
 class A2SStatusProvider(StatusProvider):
-    # 1 miss = Status Unknown, 2 misses = Offline
-    MISSES_FOR_OFFLINE = 2
+    # Misses until status is shown as offline, else status unkown
+    MISSES_FOR_OFFLINE = 6
 
     def __init__(self, host: str, port: int, max_players: int | None, timeout: float = 3.0) -> None:
         self._address = (host, port)
