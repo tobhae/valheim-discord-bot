@@ -1,43 +1,17 @@
 # Valheim Discord Bot
 
-A Discord bot for one Valheim server, built for servers hosted at [DatHost](https://dathost.com):
+A Discord bot for a Valheim server, built for servers hosted at [DatHost](https://dathost.com):
 
 - **Sidebar status:** a category with voice channels nobody can join, renamed to show the server state,
-  e.g. `🟢 My Server · up 3h 42m` and `👥 Ragnar, Lagertha`. The bot's presence shows the player count.
-- **Event feed:** messages for deaths, players joining and leaving, raids starting, and the server
-  going up or down.
-- **`/announce`:** admins fill in a form and the bot posts it as itself, as a plain message or as an embed
-  card. Right-click → **Apps → Edit announcement** edits it afterwards.
+  e.g. `🟢・Online: 3h 42m` and `👥・Ragnar, Lagertha`. The bot's presence shows the player count.
+- **Event feed:** posts for deaths, players joining and leaving, raids starting, and the server going
+  up or down.
+- **`/announce`:** admins fill in a form and the bot posts it as itself, as a plain message or an embed card.
 - **`/status`:** state, players, uptime, world and address, visible only to you.
-- **`/start`, `/stop`, `/restart`:** admins control the DatHost server from Discord.
-- **Configurable:** server name, player limit, category name, every text, and an on/off switch for each
-  feature, in `config.toml` (copied from [config.example.toml](config.example.toml)).
+- **`/start`, `/stop`, `/restart`:** admins control the server from Discord.
+- **Configurable:** the server name, every text, and an on/off switch for each feature.
 
-## How it works
-
-```
-             STATUS_SOURCE                           EVENT_SOURCE
-  ┌───────────────────────────────┐    ┌─────────────────────────────────────┐
-  │ dathost: GET /game-servers/id │    │ dathost: GET .../console (polled)   │
-  │          GET .../metrics      │    │ docker:  a container's log (local)  │
-  │ a2s:     Steam query (local)  │    │ file:    tail a log file (testing)  │
-  └───────────────┬───────────────┘    └──────────────────┬──────────────────┘
-                  ▼                                       ▼
-   cogs/status.py: sidebar rows, presence,   cogs/events.py: parse log lines →
-   uptime, server up/down posts              deaths, joins/leaves, raids
-```
-
-| File | What it does |
-|---|---|
-| `bot/main.py` | Bot setup: picks the sources from config, loads the features, syncs slash commands |
-| `bot/config.py` | Every `.env` setting, plus `[display]` and `[timing]` from `config.toml` |
-| `bot/messages.py` + `config.toml` | All texts and on/off switches, checked at startup |
-| `bot/events.py` | Log line → event (death, join, leave, raid) |
-| `bot/state.py` | `data/state.json`: what the bot remembers across restarts |
-| `bot/sources/` | DatHost API, Steam query, Docker log, log file |
-| `bot/cogs/` | The Discord features: status, events, announce, server control |
-
-Running and testing it locally, including a local Valheim server: [dev/README.md](dev/README.md).
+The bot polls the DatHost API for the server's status and reads its console log for events.
 
 ## 1. Create the Discord application
 
@@ -53,7 +27,6 @@ Running and testing it locally, including a local Valheim server: [dev/README.md
    ```
    https://discord.com/oauth2/authorize?client_id=YOUR_APP_ID&scope=bot+applications.commands&permissions=1231888&integration_type=0
    ```
-   Pick your server and authorize. The bot then shows up in the member list.
 5. In Discord, turn on **User Settings → Advanced → Developer Mode**, then:
    - Right-click your server icon → **Copy Server ID**. This is `DISCORD_GUILD_ID`.
    - Right-click the text channel for events → **Copy Channel ID**. This is `EVENTS_CHANNEL_ID`.
@@ -65,11 +38,14 @@ cp .env.example .env
 cp config.example.toml config.toml
 ```
 
-Both copies are yours: they aren't committed, so pulling updates never overwrites them. When an
-update adds a new text or setting, the bot names it at startup; copy it over from
-[config.example.toml](config.example.toml).
+- **`.env`** holds secrets and what differs per machine. Every setting is explained in
+  [.env.example](.env.example).
+- **`config.toml`** holds what the bot shows and does: display settings, timing, switches and texts.
 
-Fill in the Discord values from above, and your DatHost login:
+Neither is committed, so pulling updates never overwrites them. If an update adds a new text or setting,
+the bot names it at startup, and you copy it over from [config.example.toml](config.example.toml).
+
+Fill in the Discord values from above and your DatHost login in `.env`:
 
 ```env
 STATUS_SOURCE=dathost
@@ -79,16 +55,12 @@ DATHOST_PASSWORD=...
 DATHOST_SERVER_ID=...   # the ID in the control panel URL: dathost.com/control-panel/game-servers/<ID>
 ```
 
-The DatHost API uses your account email and password. If you sign in with Google, set a password first.
-Consider a dedicated DatHost sub-account with access to only this server. The bot only reads
-`/game-servers/{id}` (state, player count, address), `/metrics` (player names) and `/console` (the last
-200 log lines). The only commands it sends are `/start` and `/stop`, when an admin uses `/start`, `/stop`
-or `/restart`, so the account needs permission to control the server for those to work.
+Use the login of the account that owns the server. If you sign in with Google, set a password first.
 
-Every other `.env` setting is explained in [.env.example](.env.example).
+The bot reads the server's state, player names and last 200 console lines. It only sends commands when an
+admin uses `/start`, `/stop` or `/restart`.
 
-Then set your server's name, its player limit and the sidebar category's name under `[display]` in
-`config.toml`:
+Then set the basics under `[display]` in `config.toml`:
 
 ```toml
 [display]
@@ -97,70 +69,110 @@ max_players   = 10
 category_name = "Server Status"
 ```
 
-The rule of thumb: `.env` holds secrets and what differs per machine.
-`config.toml` holds what the bot shows and does: display settings, timing, switches and texts.
-Neither is committed.
-
-## 3. Run it with Docker
+## 3. Docker
 
 ```bash
-mkdir -p data                  # create it as your user, otherwise Docker creates it root-owned
-docker compose up -d --build   # build the image and start the bot in the background
+mkdir -p data                 # create it as your user, otherwise Docker creates it root-owned
+docker compose up -d --build  # build the image and start the bot in the background
 ```
 
-`--build` builds the image from the `Dockerfile`, which is needed the first time and after updating the
-code. `-d` runs the bot in the background, so it keeps running when you close the terminal.
+If you update the code or .env, run the same `docker compose up -d --build`. 
 
-To check that it started, watch its output with `docker compose logs -f bot` and look for
-`Synced 3 application commands` and `Logged in as ...`. Ctrl+C there only stops watching, not the bot.
+If you update `config.toml` you only need to run `docker compose restart bot`. 
 
-Within 30 seconds the status category appears at the top of your channel list. `restart: unless-stopped`
-brings the bot back after reboots. Only one instance may run per bot token.
+To check that the bot started, run
+`docker compose logs -f bot` and look for `Synced 6 application commands` and `Logged in as ...`. Ctrl+C
+only stops watching the log, not the bot.
 
-Without Docker, it runs on Python 3.11+: `pip install -r requirements.txt`, then `python -m bot`.
-See [dev/README.md](dev/README.md).
+The status category appears at the top of your channel list within 30 seconds. The bot comes back by itself
+after reboots. Only one instance may run per bot token.
 
-### Platform
+The bot stops at startup if it can't read or write `data/`. The folder must be writable by uid 1000, the
+user the bot runs as in Docker.
 
-The bot is developed and tested on Linux. With Docker it should also run on Windows and macOS,
-since the bot runs in a Linux container under Docker Desktop, but that hasn't been tested.
+The bot is developed and tested on Linux. With Docker it should also run on Windows and macOS, but that
+hasn't been tested. On Windows, create the folder with `mkdir data`.
 
-Differences you may run into on Windows:
+## Commands
 
-- Create the data folder with `mkdir data` (`-p` isn't needed).
-- Running without Docker, the virtual environment's Python is `.venv\Scripts\python`
-  instead of `.venv/bin/python`.
+By default, only members with *Manage Server* can use `/announce`, the edit action, `/start`, `/stop` and
+`/restart`. Change that per command under **Server Settings → Integrations → your bot**.
 
-Local testing has a few more differences, listed in [dev/README.md](dev/README.md#on-windows).
-
-
-## Usage
-
-- **Texts, switches and display settings:** change them in `config.toml`, then restart
-  (`docker compose restart bot`). A typo in a setting, `{placeholder}` or switch stops the bot at
-  startup with an error naming it.
-  - **Rows:** switching a row off deletes the channel the bot created for it; switching it back on
-    recreates it.
-  - **Your own channels:** set their IDs in `STATUS_CHANNEL_ID` / `PLAYERS_CHANNEL_ID` and the bot
-    only renames them, never deletes them.
 - **`/announce [channel] [mention] [style] [image]`:** opens a form for an optional title and the message
   (Markdown works).
-  - **Images:** pick one under `image` (PNG, JPG, GIF or WebP). Plain style posts it below the text,
-    embed style as the card's picture. With an image the message is optional, so you can post just
-    the image. The bot needs *Attach Files* in that channel.
-  - **Pings:** only the role you pick under `mention` gets pinged; @mentions inside the text never ping.
-  - **Who can use it:** by default only members with *Manage Server* see the command. Change that under
-    **Server Settings → Integrations → your bot**.
-- **Edit an announcement:** right-click the bot's message → **Apps → Edit announcement**. The image
-  stays, but can't be swapped (post a new announcement for that).
+  - **Images:** PNG, JPG, GIF or WebP. With an image the message is optional. The bot needs *Attach Files*
+    in that channel.
+  - **Pings:** only the role you pick under `mention` gets pinged; @mentions in the text never ping.
+- **Edit an announcement:** right-click the bot's message → **Apps → Edit announcement**. The image stays,
+  but can't be swapped.
 - **`/status`:** a status card only you can see.
 - **`/start`, `/stop`, `/restart`:** control the server. Only available when the bot uses DatHost.
   - **Confirmation:** `/stop` and `/restart` ask first, since they kick everyone online.
   - **Restart:** the bot stops the server, checks every 5 seconds until it reports off, then starts it. If
     it hasn't stopped after 3 minutes, the bot tells you and doesn't start it.
-  - **Who can use them:** by default only members with *Manage Server* see the commands. Change that per
-    command under **Server Settings → Integrations → your bot**.
 
-**Sidebar delay:** Discord allows only 2 renames per channel every 10 minutes, so the sidebar can lag by
-up to 5 minutes. The presence, `/status` and the event feed update on every poll. The bot remembers its
-last rename in `data/state.json`, so restarts don't run into the limit.
+## Customizing
+
+Change `config.toml`, then run `docker compose restart bot`. A typo in a setting, `{placeholder}` or switch
+stops the bot at startup with an error naming it.
+
+- **Sidebar rows:** switching a row off deletes the channel the bot created for it; switching it back on
+  recreates it.
+- **Your own channels:** set their IDs in `STATUS_CHANNEL_ID` / `PLAYERS_CHANNEL_ID` and the bot only renames
+  them, never deletes them.
+- **Standard emojis:** paste them straight into the text.
+- **Custom emojis:** `:name:` stays plain text, so use the full code. Type `\:name:` in your Discord server
+  and send it to get the code:
+  ```toml
+  player_joined = "<:name:123456789012345678>・**{name}** has joined {server}"
+  ```
+  - They only work in `[events]` and `[replies]`, not in channel names or the presence.
+  - The bot must be in the server that owns the emoji. If that isn't the one it posts in, it also needs
+    **Use External Emojis**.
+  - Re-uploading an emoji gives it a new ID, so update the code too.
+
+## Good to know
+
+- **The sidebar can lag by up to 5 minutes.** Discord allows only 2 renames per channel every 10 minutes.
+  The presence, `/status` and the event feed update on every poll.
+- **DatHost's player count can lag by 10-15 minutes.** The sidebar, presence and `/status` use that number.
+  DatHost doesn't enforce a rate limit, but polling more often doesn't help. Join, leave and death posts
+  aren't affected, since they come from the console log.
+
+### Getting a faster player count
+
+Query the server directly with Steam's query protocol (A2S) and keep DatHost for the log. In `.env`:
+
+```env
+STATUS_SOURCE=a2s
+A2S_HOST=...   # the server's IP or domain from the DatHost panel
+A2S_PORT=...   # the game port + 1
+```
+
+- **The server must be public.** A private server doesn't answer these queries, so the bot sees it as
+  offline. A public server is listed in the server browser, but still needs its password to join. With
+  `STATUS_SOURCE=dathost`, private servers work fine.
+- **Crossplay may break the count.** With crossplay on, Valheim reportedly always answers 0 players.
+- **Trade-off:** two missed answers in a row count as offline, so a short network hiccup can post offline
+  and online.
+
+## Development
+
+Run the tests from the project root, after `pip install -r requirements-dev.txt` in a virtual environment:
+
+```bash
+.venv/bin/pytest
+```
+
+Running the bot without Docker (Python 3.11+) and testing against a local Valheim server are covered in
+[dev/README.md](dev/README.md). Reading a local container's log with `EVENT_SOURCE=docker` needs Docker 23+.
+
+| File | What it does |
+|---|---|
+| `bot/main.py` | Bot setup: picks the sources from config, loads the features, syncs slash commands |
+| `bot/config.py` | Every `.env` setting, plus `[display]` and `[timing]` from `config.toml` |
+| `bot/messages.py` | All texts and on/off switches from `config.toml`, checked at startup |
+| `bot/events.py` | Log line → event (death, join, leave, raid) |
+| `bot/state.py` | `data/state.json`: what the bot remembers across restarts |
+| `bot/sources/` | Where status and logs come from: DatHost API, Steam query, Docker log, log file |
+| `bot/cogs/` | The Discord features: status, events, announce, server control |
