@@ -2,9 +2,9 @@
 
 How to run and test the bot on your own machine, including a local Valheim server.
 
-***Note**: The commands below assume Linux. On Windows, see [On Windows](#on-windows) at the end.*
+Everything below runs from the repository root. It is suggested to use a private test Discord server, so the real one stays clean. 
 
-Everything below runs from the repository root. The local-testing files live in this folder:
+The local-testing files live in this folder:
 
 | File | What it is |
 |---|---|
@@ -13,7 +13,7 @@ Everything below runs from the repository root. The local-testing files live in 
 | `dev/devserver/` | The test server's world and config (created on first start, not committed) |
 | `dev/devlogs/` | Log files for `EVENT_SOURCE=file` (not committed) |
 
-***Tip**: Use a private test Discord server, so your real one stays clean.*
+***Note**: The commands below assume Linux. For Windows, see [On Windows](#on-windows) at the end.*
 
 ## Run the bot directly (Python 3.11+)
 
@@ -34,9 +34,8 @@ After changing code, `.env` or `config.toml`: Ctrl+C and start it again. Set `LO
 something silently doesn't happen; the sources log their failures at debug level.
 
 ## A local Valheim server
-
+Make sure Docker is running, or start it with `sudo systemctl start docker`.
 ```bash
-sudo systemctl start docker
 docker compose -f dev/compose.valheim.yml up -d           # first boot: several minutes, ~2 GB download
 docker compose -f dev/compose.valheim.yml logs -f valheim # wait for "Game server connected"
 ```
@@ -54,19 +53,16 @@ At startup the bot reads the recent log without posting, so it already knows who
 **Joining:** Join game → Add server → `127.0.0.1:2456`, password `devpass123`. You'll get a join post
 within ~15 s, and the sidebar updates within 5 minutes.
 
-Things that tripped us up:
-- **The server runs as public** (`SERVER_PUBLIC=true`). A private Valheim server ignores Steam status
-  queries, which leaves `STATUS_SOURCE=a2s` showing "offline" forever. It's still password protected.
-- **Join with a vanilla client:** start Valheim from Steam, not from a mod manager. Mods that check the server
-  (e.g. anything using ConditionalConfigSync or ServerSync) disconnect you right after joining, because
-  the test server doesn't run them.
-- **No player names over A2S:** Valheim doesn't report names that way. The bot takes them from the log
-  instead, as long as it has seen everyone join.
+Start Valheim from Steam, not from a mod manager. Mods that check the server (e.g. anything using
+ConditionalConfigSync or ServerSync) disconnect you right after joining, because the test server
+doesn't run them.
 
 Stop the server with `docker compose -f dev/compose.valheim.yml down`. If Docker ever says
 `network ... not found`, add `--force-recreate` to the `up` command. The world in `dev/devserver/` is kept.
 
-### Admin commands and raids
+***Note:** The server runs as public (`SERVER_PUBLIC=true`). A private Valheim server ignores Steam status queries, which leaves `STATUS_SOURCE=a2s` showing offline. It's still password protected. The password and other settings are found in `dev/compose.valheim.yml`.*
+
+### Admin commands
 
 Admins are listed by Steam ID in `dev/devserver/config/adminlist.txt`. Your ID appears in the server log
 as `Got connection SteamID <id>` when you join. The file belongs to root (Docker created it), so add
@@ -79,9 +75,6 @@ docker compose -f dev/compose.valheim.yml exec valheim sh -c 'echo <your steam i
 Relog, open the console with F5 (add `-console` to Valheim's Steam launch options if needed), and
 run `devcommands`. On a dedicated server, only server-side commands work, e.g. `event army_eikthyr` to
 start a raid and `stopevent` to end it. `god` and `debugmode` don't.
-
-To see what a raid looks like in the log without any of that, play single player with `devcommands`;
-the game writes the same server lines to `~/.config/unity3d/IronGate/Valheim/Player.log`.
 
 ## Fake events without a Valheim server
 
@@ -108,11 +101,14 @@ socket is root-equivalent, which is fine for testing but why it isn't part of `c
 
 What needs what after a change:
 
-| You changed | Running directly | Running in Docker |
+| Changes | Restart | Command |
 |---|---|---|
-| `.env` | restart the bot | `docker compose ... up -d` (a plain `restart` keeps the old settings) |
-| `config.toml` | restart the bot | `docker compose restart bot` |
-| Python code | restart the bot | `docker compose ... up -d --build` |
+| `config.toml` | the bot | `docker compose restart bot` |
+| `.env` | container | `docker compose -f compose.yml -f dev/compose.dev.yml up -d` (a plain `restart` keeps the old settings) |
+| Python code | container | `docker compose -f compose.yml -f dev/compose.dev.yml up -d --build` |
+
+Always pass both `-f` files to `up`. Without them, Docker recreates the bot without the dev settings
+(no socket, no `a2s`).
 
 ## On Windows
 
@@ -121,23 +117,10 @@ Not tested, but these are the known differences:
 - **Docker:** start Docker Desktop instead of `sudo systemctl start docker`. The Valheim test server
   (`dev/compose.valheim.yml`) runs as a Linux container and should work as is.
 - **Python:** use `.venv\Scripts\python` and `.venv\Scripts\pip` instead of `.venv/bin/...`.
-- **`EVENT_SOURCE=docker` with the bot running directly doesn't work.** Docker on Windows uses a named pipe,
+- `EVENT_SOURCE=docker` with the bot running directly doesn't work. Docker on Windows uses a named pipe,
   and the bot only supports Docker's Unix socket. Run the bot in Docker instead
   (`dev/compose.dev.yml`), or use `EVENT_SOURCE=file` to fake events.
-- **`dev/compose.dev.yml`:** `getent group docker` and `DOCKER_GID` are Linux-only. Docker Desktop
+- `dev/compose.dev.yml`: `getent group docker` and `DOCKER_GID` are Linux-only. Docker Desktop
   handles access to the socket differently, so the `group_add` part may need changing.
 - **Fake events:** the `echo ... >> dev/devlogs/valheim.log` lines work in Git Bash. In PowerShell, use
   `Add-Content dev/devlogs/valheim.log "<line>"` so the file stays UTF-8.
-- **Single-player log** (for checking raid lines):
-  `%USERPROFILE%\AppData\LocalLow\IronGate\Valheim\Player.log`.
-
-
-## Discord limits to know about
-
-- **Renames:** 2 per channel per 10 minutes. The bot renames at most every 5 minutes and remembers
-  the last rename across restarts.
-- **Creating channels:** Discord limits how many channels a server can create in a while, shared by
-  everyone who changes the server. After lots of deleting and recreating, it can refuse for hours.
-  The bot then logs when it will try again and waits. To get a row back sooner, create a voice
-  channel yourself and put its ID in `STATUS_CHANNEL_ID` / `PLAYERS_CHANNEL_ID`. Avoid flipping
-  the row switches back and forth: each flip deletes or creates a channel.
