@@ -4,6 +4,7 @@ services:
     image: valheim-discord-bot
     restart: unless-stopped
     env_file: .env
+    stop_signal: SIGINT
     volumes:
       - ./data:/app/data
       - type: bind
