@@ -153,8 +153,9 @@ A2S_PORT=...   # the game port + 1
   offline. A public server is listed in the server browser, but still needs its password to join. With
   `STATUS_SOURCE=dathost`, private servers work fine.
 - **Crossplay may break the count.** With crossplay on, Valheim reportedly always answers 0 players.
-- **Trade-off:** two missed answers in a row count as offline, so a short network hiccup can post offline
-  and online.
+- **Trade-off:** 3 missed answers in a row (about 90 seconds) count as offline, so a short network hiccup
+  can post offline and online. To change it, edit `MISSES_FOR_OFFLINE` in
+  [bot/sources/a2s_query.py](bot/sources/a2s_query.py) and rebuild.
 
 ## Development
 

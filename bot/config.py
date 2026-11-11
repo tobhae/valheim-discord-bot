@@ -69,7 +69,7 @@ def toml_section(data: dict[str, Any], name: str, path: Path) -> dict[str, Any]:
 SETTINGS: dict[str, dict[str, tuple[type, Any]]] = {
     "display": {
         "server_name": (str, "Valheim"),
-        "max_players": (int, 0),  # 0: not shown, the count appears without "/max"
+        "max_players": (int, 0),  # 0: unknown, /status shows just the count, texts show "?"
         "category_name": (str, "Server Status"),
     },
     "timing": {

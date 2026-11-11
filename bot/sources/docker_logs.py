@@ -48,7 +48,8 @@ class DockerLogSource(LogSource):
         self._socket_path = socket_path
         self._session: aiohttp.ClientSession | None = None
         self._buffer: list[str] = []
-        self._last_ns = 0 # Timestamp of the newest line seen (or of the bot's start), to resume without gaps or repeats.
+        # Timestamp of the newest line seen (or of the bot's start), to resume without gaps or repeats.
+        self._last_ns = 0
         self._follow_task: asyncio.Task | None = None
 
     def _http(self) -> aiohttp.ClientSession:

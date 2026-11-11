@@ -3,7 +3,7 @@
 # `docker compose restart bot` to apply them. The container mounts it read-only.
 
 # {placeholders} are filled in by the bot. Each section lists its supported
-# placeholders. Unknown placeholders cause a startup error with the line number.
+# placeholders. Unknown placeholders stop the bot at startup with an error naming the text.
 # Markdown (**bold**, *italic*) works in posts, but not in channel names or presence.
 
 [display]
