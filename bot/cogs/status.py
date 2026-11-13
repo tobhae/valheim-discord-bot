@@ -172,20 +172,10 @@ class StatusCog(commands.Cog):
         return messages.enabled("category_bar") and messages.enabled(row.switch)
 
     def _category(self, guild: discord.Guild) -> discord.CategoryChannel | None:
-        """The bot's category: remembered by id, so changing [display] category_name renames it."""
+        """The category the bot created: remembered by id, so changing [display] category_name renames it.
+        Never one found by name, so the bot can't rename or delete a category of yours."""
         category = guild.get_channel(self.bot.state.get("status_category_id") or 0)
-        if isinstance(category, discord.CategoryChannel):
-            return category
-        # Not remembered yet (or deleted): the category a row the bot created is in, else by name.
-        for row in self.rows:
-            channel = guild.get_channel(self.bot.state.get(row.state_key) or 0)
-            if not row.configured_id and channel is not None and channel.category is not None:
-                category = channel.category
-                break
-        else:
-            category = discord.utils.get(guild.categories, name=self.config.category_name)
-        self.bot.state.set("status_category_id", category.id if category else None)
-        return category
+        return category if isinstance(category, discord.CategoryChannel) else None
 
     async def _ensure_category(self, guild: discord.Guild) -> discord.CategoryChannel:
         category = self._category(guild)
