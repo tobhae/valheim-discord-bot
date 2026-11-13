@@ -99,6 +99,10 @@ class DockerLogSource(LogSource):
                 message = "isn't running, waiting for it to start"
             except (aiohttp.ClientError, OSError) as exc:
                 message = f"is unavailable: {_explain(exc)}"
+            except Exception:
+                # Anything else would end this task silently and stop events for good.
+                log.exception("Reading the log of container %r failed, retrying", self._container)
+                message = "failed (see the error above)"
             if message != problem:
                 log.warning("Container %r %s", self._container, message)
                 problem = message
