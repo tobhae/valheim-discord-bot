@@ -90,6 +90,9 @@ class FileLogSource(LogSource):
             stat = self._path.stat()
         except FileNotFoundError:
             return []
+        if self._inode is None:  # read_backlog() never saw this file: skip its history, like DatHost
+            self._position, self._inode = stat.st_size, stat.st_ino
+            return []
         if stat.st_ino != self._inode or stat.st_size < self._position:
             log.info("%s was created, rotated or truncated, reading from start", self._path)
             self._position, self._inode = 0, stat.st_ino
